@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useStateTogether } from 'react-together';
-import { setTimeOffset } from './utils/timeSync';
+import { setTimeOffset } from '/utils/timeSync';
 
 const HEARTBEAT_INTERVAL = 5000;
 const OFFLINE_THRESHOLD = 12000;
