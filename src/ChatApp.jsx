@@ -20,6 +20,7 @@ import { BrowserProvider } from 'ethers';
 import { monadTestnet } from 'viem/chains';
 import PhotoSwipe from 'photoswipe';
 import 'photoswipe/dist/photoswipe.css';
+import { useMessageSync } from './hooks/useMessageSync';
 
 async function walletClientToSigner(walletClient) {
     const { account, chain, transport } = walletClient;
@@ -85,7 +86,6 @@ export default function ChatApp() {
     const messagesEndRef = useRef(null);
     const fileInputRef = useRef(null);
     const emojiPickerRef = useRef(null);
-    const pollingIntervalRef = useRef(null);
     const emojiButtonRef = useRef(null);
     const scrollAnchorRef = useRef(null);
     const textareaRef = useRef(null);
@@ -97,6 +97,28 @@ export default function ChatApp() {
     const dropdownRef = useRef(null);
     const lightboxRef = useRef(null);
     const { onlineUsers, updateMyPresence, onlineCount } = usePresence(address, userProfile?.username);
+
+    const handleNewMessageNotification = useCallback(async () => {
+        if (!contract) return;
+
+        const container = messagesContainerRef.current;
+        const isAtBottom = container ? (container.scrollHeight - container.scrollTop - container.clientHeight) < container.clientHeight : true;
+
+        await loadLatestMessages(contract);
+
+        if (isAtBottom) {
+            setTimeout(() => scrollToBottom(), 300);
+        } else {
+            const totalMessages = await contract.contadorMensagens();
+            const newMessagesCount = Number(totalMessages) - lastMessageCountRef.current;
+            if (newMessagesCount > 0) {
+                setUnseenMessages(prev => prev + newMessagesCount);
+            }
+        }
+    }, [contract, loadLatestMessages, scrollToBottom]);
+
+    const { notifyNewMessage } = useMessageSync(handleNewMessageNotification, address);
+
 
     const MESSAGES_PER_PAGE = 25;
 
@@ -714,6 +736,8 @@ export default function ChatApp() {
 
             const tx = await contract.enviarMensagem(textContent, imageHashContent, replyId);
             await tx.wait();
+            
+            notifyNewMessage();
 
             setNewMessage('');
             setSelectedImage(null);
@@ -744,6 +768,7 @@ export default function ChatApp() {
             showPopup('Message edited!', 'success');
             setEditingMessage(null);
             setNewMessage('');
+            notifyNewMessage();
             await loadMessages(contract);
         } catch (error) {
             hidePopup();
@@ -759,6 +784,7 @@ export default function ChatApp() {
             await tx.wait();
             hidePopup();
             showPopup('Message deleted!', 'success');
+            notifyNewMessage();
             await loadMessages(contract);
         } catch (error) {
             hidePopup();
@@ -825,6 +851,7 @@ export default function ChatApp() {
 
             refetchBalance();
 
+            notifyNewMessage();
             await loadLatestMessages(contractWithSigner);
 
         } catch (error) {
@@ -847,6 +874,7 @@ export default function ChatApp() {
             await tx.wait();
             hidePopup();
             showPopup('User banned!', 'success');
+            notifyNewMessage();
             await loadMessages(contract);
         } catch (error) {
             hidePopup();
@@ -868,6 +896,7 @@ export default function ChatApp() {
             await tx.wait();
             hidePopup();
             showPopup('User unbanned!', 'success');
+            notifyNewMessage();
             await loadMessages(contract);
         } catch (error) {
             hidePopup();
@@ -1011,36 +1040,6 @@ export default function ChatApp() {
             lastMessageCountRef.current = latestId;
         }
     }, [messages]); 
-
-    useEffect(() => {
-        if (!isConnected || !contract || isAppLoading) { 
-            if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-            return;
-        }
-        const startPolling = () => {
-            if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = setInterval(async () => {
-                const container = messagesContainerRef.current;
-                const isAtBottom = container ? (container.scrollHeight - container.scrollTop - container.clientHeight) < container.clientHeight : true;
-                
-                await loadLatestMessages(contract);
-
-                if (isAtBottom) {
-                    setTimeout(() => scrollToBottom(), 300);
-                } else {
-                    const totalMessages = await contract.contadorMensagens();
-                    const newMessagesCount = Number(totalMessages) - lastMessageCountRef.current;
-                    if (newMessagesCount > 0) {
-                        setUnseenMessages(prev => prev + newMessagesCount);
-                    }
-                }
-            }, 10000); 
-        };
-        startPolling();
-        return () => {
-            if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-        };
-    }, [isConnected, contract, isAppLoading]); 
 
     useEffect(() => {
 
