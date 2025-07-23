@@ -198,7 +198,6 @@ export default function ChatApp() {
                 setIsWrongNetwork(false);
                 setUserProfile(null);
                 
-                // --- NEW: RPC Fallback Logic ---
                 const rpcUrls = MONAD_TESTNET.rpcUrls.default.http;
                 let connectedContract = null;
 
@@ -207,7 +206,7 @@ export default function ChatApp() {
                         console.log(`Attempting to connect to RPC: ${url}`);
                         const publicProvider = new ethers.JsonRpcProvider(url);
                         const readOnlyContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, publicProvider);
-                        await readOnlyContract.contadorMensagens(); // Test call
+                        await readOnlyContract.contadorMensagens();
                         console.log(`Successfully connected to RPC: ${url}`);
                         connectedContract = readOnlyContract;
                         break; 
@@ -1193,7 +1192,7 @@ export default function ChatApp() {
     useEffect(() => {
         if (messages.length > 0) {
             const latestId = messages[messages.length - 1].id;
-            // -- Only update if the new ID is greater --
+  
             if (latestId > lastMessageCountRef.current) {
                 lastMessageCountRef.current = latestId;
             }
