@@ -1120,7 +1120,7 @@ export default function ChatApp() {
             
                     const novaPagina = 0;
                     const itensPorPagina = 10;
-                    const novasMensagens = await contract.obterMensagensDetalhadasPaginadas(novaPagina, itensPorPagina);
+                    const novasMensagens = await contract.obterMensagensPaginadas(novaPagina, itensPorPagina);
             
                     console.log("[Polling] Mensagens mais recentes recebidas:", novasMensagens.length);
             
