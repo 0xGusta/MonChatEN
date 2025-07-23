@@ -96,6 +96,7 @@ export default function ChatApp() {
     const lastTypingValue = useRef(false);
     const dropdownRef = useRef(null);
     const lightboxRef = useRef(null);
+    const faviconRef = useRef(document.getElementById('favicon'));
     const { onlineUsers, updateMyPresence, onlineCount } = usePresence(address, userProfile?.username);
     const [showConsoleModal, setShowConsoleModal] = useState(false);
     const [consoleLogs, setConsoleLogs] = useState([]);
