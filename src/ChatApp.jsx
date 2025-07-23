@@ -157,6 +157,7 @@ export default function ChatApp() {
         const setupApp = async () => {
 
             if (isConnected && walletClient && address) {
+                console.log("Setting up app with connected wallet:", address);
                 const isOnCorrectNetwork = chain?.id === monadTestnet.id;
                 setIsWrongNetwork(!isOnCorrectNetwork);
     
@@ -193,15 +194,36 @@ export default function ChatApp() {
                 }
     
             } else {
-
+                console.log("Setting up app in read-only mode.");
                 setIsWrongNetwork(false);
                 setUserProfile(null);
-                const publicProvider = new ethers.JsonRpcProvider(monadTestnet.rpcUrls.default.http[0]);
-                const readOnlyContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, publicProvider);
-                setContract(readOnlyContract);
-    
-                if (messages.length === 0) {
-                    loadMessages(readOnlyContract);
+                
+                // --- NEW: RPC Fallback Logic ---
+                const rpcUrls = MONAD_TESTNET.rpcUrls.default.http;
+                let connectedContract = null;
+
+                for (const url of rpcUrls) {
+                    try {
+                        console.log(`Attempting to connect to RPC: ${url}`);
+                        const publicProvider = new ethers.JsonRpcProvider(url);
+                        const readOnlyContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, publicProvider);
+                        await readOnlyContract.contadorMensagens(); // Test call
+                        console.log(`Successfully connected to RPC: ${url}`);
+                        connectedContract = readOnlyContract;
+                        break; 
+                    } catch (e) {
+                        console.warn(`Failed to connect to RPC ${url}. Trying next...`);
+                    }
+                }
+
+                if (connectedContract) {
+                    setContract(connectedContract);
+                    if (messages.length === 0) {
+                       await loadMessages(connectedContract);
+                    }
+                } else {
+                    console.error("Could not connect to any Monad Testnet RPCs.");
+                    showPopup('Could not connect to the Monad network. The service may be temporarily unavailable.', 'error');
                 }
             }
         };
@@ -210,6 +232,106 @@ export default function ChatApp() {
 
     }, [isConnected, address, walletClient, chain]);
 
+    // --- NEW: Polling useEffect with Advanced Debugging ---
+    useEffect(() => {
+        if (!isConnected || !contract || isAppLoading || !walletClient) {
+            console.log("[Polling] Stopping polling: connection or contract unavailable.");
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+            }
+            return;
+        }
+    
+        const startPolling = () => {
+            console.log("[Polling] Starting message polling...");
+    
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+            }
+    
+            pollingIntervalRef.current = setInterval(async () => {
+                try {
+                    console.log("[Polling] Checking for new messages...");
+            
+                    // --- DEBUG LOG: Check which provider is being used ---
+                    if (contract.runner?.provider) {
+                        const connection = contract.runner.provider.connection;
+                        if(connection?.url) {
+                            console.log(`[Polling] Using RPC URL: ${connection.url}`);
+                        } else {
+                            // This usually means it's the wallet's injected provider (MetaMask)
+                            console.log("[Polling] Using injected wallet provider (e.g., MetaMask).");
+                        }
+                    }
+            
+                    console.time("[Polling] Contract call 'contadorMensagens' duration");
+                    const totalMessagesBigInt = await contract.contadorMensagens();
+                    console.timeEnd("[Polling] Contract call 'contadorMensagens' duration");
+                    
+                    const total = Number(totalMessagesBigInt);
+                    const previous = lastMessageCountRef.current;
+            
+                    // --- DEBUG LOG: Log raw and converted values ---
+                    console.log(`[Polling] Raw response from contract:`, totalMessagesBigInt);
+                    console.log(`[Polling] Current total on contract: ${total}`);
+                    console.log(`[Polling] Previous local total: ${previous}`);
+            
+                    if (total > previous) {
+                        const newMessagesCount = total - previous;
+                        console.log(`[Polling] New messages detected: ${newMessagesCount}`);
+            
+                        const container = messagesContainerRef.current;
+                        const isAtBottom = container
+                            ? (container.scrollHeight - container.scrollTop - container.clientHeight) < container.clientHeight
+                            : true;
+            
+                        await loadLatestMessages(contract);
+            
+                        if (isAtBottom) {
+                            console.log("[Polling] User is at bottom — auto-scrolling.");
+                            setTimeout(() => scrollToBottom(), 300);
+                        } else {
+                            console.log("[Polling] User is not at bottom — incrementing unseen messages.");
+                            setUnseenMessages(prev => prev + newMessagesCount);
+                        }
+                        
+                        // --- DEFENSIVE LOGIC: Only update local count if it has grown ---
+                        console.log(`[Polling] Updating local message count from ${previous} to ${total}.`);
+                        lastMessageCountRef.current = total;
+
+                    } else if (total < previous) {
+                        // --- DEFENSIVE LOGIC: Handle outdated RPC response ---
+                        console.warn(`[Polling] Contract message count (${total}) is LESS than local count (${previous}). Suspecting outdated RPC response. IGNORING this update.`);
+                    
+                    } else {
+                        console.log("[Polling] No new messages.");
+                    }
+                } catch (error) {
+                    console.error("[Polling] Error fetching messages:", error);
+                    if (error.info) {
+                       console.error("[Polling] Ethers error details:", error.info);
+                    }
+                }
+            }, 5000);
+        };
+    
+        startPolling();
+    
+        return () => {
+            if (pollingIntervalRef.current) {
+                console.log("[Polling] Clearing polling interval.");
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
+            }
+        };
+    }, [isConnected, contract, isAppLoading, walletClient]);
+
+    // (O resto do seu código permanece o mesmo)
+    // ... cole todo o resto do seu componente ChatApp.jsx aqui ...
+    
+    // Vou colar o restante para garantir que você tenha o arquivo completo
+    
     useEffect(() => {
         if (balanceData) {
             setBalance(Number(balanceData.formatted).toFixed(2));
@@ -634,7 +756,7 @@ export default function ChatApp() {
             setRawProvider(walletProvider);
             setSigner(signer);
             setContract(contract);
-        
+    
             const [profileData, balanceData, ownerAddress, isModeratorResult] = await Promise.all([
                 contract.obterPerfilUsuario(userAddress),
                 provider.getBalance(userAddress),
@@ -709,7 +831,7 @@ export default function ChatApp() {
 
     
     const handleAgreeAndProceedToProfile = () => {
-        setShowAboutModal(false);       
+        setShowAboutModal(false);     
         setIsForcedAboutModal(false);   
         setShowEditProfileModal(true);  
     };
@@ -1064,7 +1186,10 @@ export default function ChatApp() {
     useEffect(() => {
         if (messages.length > 0) {
             const latestId = messages[messages.length - 1].id;
-            lastMessageCountRef.current = latestId;
+            // -- Only update if the new ID is greater --
+            if (latestId > lastMessageCountRef.current) {
+                lastMessageCountRef.current = latestId;
+            }
         }
     }, [messages]); 
 
@@ -1096,75 +1221,6 @@ export default function ChatApp() {
             setTimeout(() => scrollToBottom(), 300);
         }
     }, [isInitialLoad]);
-
-    useEffect(() => {
-        if (!isConnected || !contract || isAppLoading || !walletClient) {
-            console.log("[Polling] Parando polling: conexão ou contrato indisponível.");
-            if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current);
-                pollingIntervalRef.current = null;
-            }
-            return;
-        }
-    
-        const startPolling = () => {
-            console.log("[Polling] Iniciando polling de mensagens...");
-    
-            if (pollingIntervalRef.current) {
-                clearInterval(pollingIntervalRef.current);
-            }
-    
-            pollingIntervalRef.current = setInterval(async () => {
-                try {
-                    console.log("[Polling] Buscando últimas mensagens...");
-            
-                    const novaPagina = 0;
-                    const itensPorPagina = 10;
-                    const novasMensagens = await contract.obterMensagensPaginadas(novaPagina, itensPorPagina);
-            
-                    console.log("[Polling] Mensagens mais recentes recebidas:", novasMensagens.length);
-            
-                    const mensagensFiltradas = novasMensagens.filter(msg => {
-                        return !mensagensVisiveis.some(m => m.id.toString() === msg.id.toString());
-                    });
-            
-                    if (mensagensFiltradas.length > 0) {
-                        console.log("[Polling] Novas mensagens detectadas:", mensagensFiltradas.map(m => m.id.toString()));
-            
-                        setMensagensVisiveis(prev => [...prev, ...mensagensFiltradas]);
-            
-                        const container = messagesContainerRef.current;
-                        const isAtBottom = container
-                            ? (container.scrollHeight - container.scrollTop - container.clientHeight) < container.clientHeight
-                            : true;
-            
-                        if (isAtBottom) {
-                            setTimeout(() => scrollToBottom(), 300);
-                        } else {
-                            setUnseenMessages(prev => prev + mensagensFiltradas.length);
-                        }
-                    } else {
-                        console.log("[Polling] Nenhuma nova mensagem encontrada.");
-                    }
-                } catch (error) {
-                    console.error("[Polling] Erro buscando mensagens:", error);
-                }
-            }, 5000);
-
-
-        };
-    
-        startPolling();
-    
-        return () => {
-            if (pollingIntervalRef.current) {
-                console.log("[Polling] Limpando intervalo de polling.");
-                clearInterval(pollingIntervalRef.current);
-                pollingIntervalRef.current = null;
-            }
-        };
-    }, [isConnected, contract, isAppLoading, walletClient]);
-
     
     useLayoutEffect(() => {
         const container = messagesContainerRef.current;
@@ -1177,7 +1233,7 @@ export default function ChatApp() {
     }, [messages]);
     
     
-useEffect(() => {
+    useEffect(() => {
 
     if (!isConnected || !provider || !rawProvider) {
         return;
@@ -1219,7 +1275,7 @@ useEffect(() => {
         }
     };
 
-}, [isConnected, provider, rawProvider]);
+    }, [isConnected, provider, rawProvider]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -1318,7 +1374,7 @@ useEffect(() => {
                                                 <appkit-account-button/>
                                             </div>
 
-                                            
+                                        
 
                                         <hr className="my-1 border-gray-600" />
                                         
@@ -1432,8 +1488,8 @@ useEffect(() => {
 
                             <appkit-button />
 
-                            </>
-                        )}
+                        </>
+                    )}
                 </div>
             </header>
             <div className="chat-container" ref={messagesContainerRef} onScroll={handleScroll}>
