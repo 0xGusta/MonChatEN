@@ -869,3 +869,49 @@ a:hover {
     color: #ffffff;
     box-shadow: inset 370px 0 0 0 #8a5cf6;
 }
+
+.console-modal .modal-content {
+    width: 95%;
+    max-width: none;
+    height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.console-logs {
+    flex-grow: 1;
+    overflow-y: auto;
+    background: #0F0F23;
+    padding: 1rem;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.log-entry {
+    padding: 0.25rem 0.5rem;
+    border-bottom: 1px solid #374151;
+}
+
+.log-entry:last-child {
+    border-bottom: none;
+}
+
+.log-entry.log {
+    color: #E5E7EB;
+}
+
+.log-entry.error {
+    color: #F87171;
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+.log-entry.warn {
+    color: #FBBF24;
+    background-color: rgba(245, 158, 11, 0.1);
+}
+
+.log-timestamp {
+    color: #6B7280;
+    margin-right: 1rem;
+}
