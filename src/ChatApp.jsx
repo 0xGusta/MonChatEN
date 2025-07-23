@@ -16,7 +16,7 @@ import GifPicker from './components/GifPicker';
 import OnlineCounter from './components/OnlineCounter';
 import LinkConfirmationModal from './components/LinkConfirmationModal';
 import { useAccount, useDisconnect, useBalance, useWalletClient } from 'wagmi';
-import { BrowserProvider, WebSocketProvider } from 'ethers';
+import { BrowserProvider } from 'ethers';
 import { monadTestnet } from 'viem/chains';
 import PhotoSwipe from 'photoswipe';
 import 'photoswipe/dist/photoswipe.css';
@@ -33,15 +33,12 @@ async function walletClientToSigner(walletClient) {
     return signer;
 }
 
-const WEBSOCKET_URL = "wss://monad-testnet.drpc.org";
-
 export default function ChatApp() {
     const { address, isConnected, chain } = useAccount();
     const { data: walletClient } = useWalletClient();
     const { disconnect } = useDisconnect();
     const { data: balanceData, refetch: refetchBalance } = useBalance({ address });
     const [contract, setContract] = useState(null);
-    const [eventContract, setEventContract] = useState(null);
     const [provider, setProvider] = useState(null);
     const [signer, setSigner] = useState(null);
     const [messages, setMessages] = useState([]);
@@ -87,6 +84,7 @@ export default function ChatApp() {
     const messagesEndRef = useRef(null);
     const fileInputRef = useRef(null);
     const emojiPickerRef = useRef(null);
+    const pollingIntervalRef = useRef(null);
     const emojiButtonRef = useRef(null);
     const scrollAnchorRef = useRef(null);
     const textareaRef = useRef(null);
@@ -100,21 +98,6 @@ export default function ChatApp() {
     const { onlineUsers, updateMyPresence, onlineCount } = usePresence(address, userProfile?.username);
 
     const MESSAGES_PER_PAGE = 25;
-
-    useEffect(() => {
-        const wsProvider = new WebSocketProvider(WEBSOCKET_URL);
-
-        wsProvider.on('open', () => console.log("WebSocket connection established."));
-        wsProvider.on('error', (err) => console.error("WebSocket Error:", err));
-        
-        const eventOnlyContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, wsProvider);
-        setEventContract(eventOnlyContract);
-
-        return () => {
-            console.log("Closing WebSocket connection.");
-            wsProvider.destroy();
-        }
-    }, []);
 
     useEffect(() => {
         const setupApp = async () => {
@@ -500,91 +483,7 @@ export default function ChatApp() {
             isFetchingNewerMessages.current = false;
         }
     };
-    
-    useEffect(() => {
-        if (eventContract) {
-            const onNewMessage = (id, remetente, usuario, conteudo, imageHash, timestamp, respondeA) => {
-                console.log("Event: New Message", {id, remetente});
-                const newMessage = {
-                    id: Number(id),
-                    remetente,
-                    usuario,
-                    conteudo,
-                    imageHash,
-                    timestamp: Number(timestamp),
-                    excluida: false,
-                    respondeA: Number(respondeA),
-                    senderProfile: userProfilesCache.get(remetente.toLowerCase())
-                };
-
-                setMessages(prevMessages => {
-                    const messageExists = prevMessages.some(msg => msg.id === newMessage.id);
-                    if (!messageExists) {
-                        const updatedMessages = [...prevMessages, newMessage];
-                        updatedMessages.sort((a, b) => a.timestamp - b.timestamp);
-                        return updatedMessages;
-                    }
-                    return prevMessages;
-                });
-            };
-
-            const onEditMessage = (id, novoConteudo) => {
-                console.log("Event: Edit Message", {id});
-                setMessages(prevMessages =>
-                    prevMessages.map(msg =>
-                        msg.id === Number(id) ? { ...msg, conteudo: novoConteudo } : msg
-                    )
-                );
-            };
-
-            const onDeleteMessage = (id) => {
-                console.log("Event: Delete Message", {id});
-                setMessages(prevMessages =>
-                    prevMessages.map(msg =>
-                        msg.id === Number(id) ? { ...msg, excluida: true } : msg
-                    )
-                );
-            };
-
-            const onUserBanned = (address, username) => {
-                console.log(`Event: User Banned: ${username} (${address})`);
-                if(contract) loadMessages(contract);
-            };
-            
-            const onMonSent = (from, to, value, message) => {
-                console.log("Event: MON Sent");
-                if(contract) loadLatestMessages(contract);
-            }
-
-            const listener = (event) => {
-                switch(event.fragment.name) {
-                    case 'MensagemEnviada':
-                        onNewMessage(...event.args);
-                        break;
-                    case 'MensagemEditada':
-                        onEditMessage(...event.args);
-                        break;
-                    case 'MensagemExcluida':
-                        onDeleteMessage(...event.args);
-                        break;
-                    case 'UsuarioBanido':
-                        onUserBanned(...event.args);
-                        break;
-                    case 'MonEnviado':
-                        onMonSent(...event.args);
-                        break;
-                }
-            };
-
-            eventContract.on('*', listener);
-
-            return () => {
-                eventContract.off('*', listener);
-            };
-        }
-    }, [eventContract, contract]);
-
-        
+     
     const handleSelectGif = (gifUrl) => {
         setSelectedGifUrl(gifUrl); 
         setSelectedImage(null);
@@ -1137,6 +1036,42 @@ export default function ChatApp() {
             setTimeout(() => scrollToBottom(), 300);
         }
     }, [isInitialLoad]);
+
+    useEffect(() => {
+        if (!isConnected || !contract || isAppLoading) { 
+            if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+            return;
+        }
+        const startPolling = () => {
+            if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = setInterval(async () => {
+                try {
+                    const totalMessages = await contract.contadorMensagens();
+                    if (Number(totalMessages) > lastMessageCountRef.current) {
+                        const newMessagesCount = Number(totalMessages) - lastMessageCountRef.current;
+                        const container = messagesContainerRef.current;
+                        const isAtBottom = container ? (container.scrollHeight - container.scrollTop - container.clientHeight) < container.clientHeight : true;
+                        
+                        await loadLatestMessages(contract); 
+                        
+                        if (isAtBottom) {
+                            setTimeout(() => scrollToBottom(), 300);
+                        } else {
+                            setUnseenMessages(prev => prev + newMessagesCount);
+                        }
+                    }
+                } catch (error) {
+                    console.error("Erro no polling:", error);
+                }
+            }, 5000);
+        };
+    
+        startPolling();
+    
+        return () => {
+            if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+        };
+    }, [isConnected, contract, isAppLoading]);
     
     useLayoutEffect(() => {
         const container = messagesContainerRef.current;
