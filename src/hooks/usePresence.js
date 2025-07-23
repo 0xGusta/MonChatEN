@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useStateTogether } from 'react-together';
+import { setTimeOffset } from './utils/timeSync';
 
 const HEARTBEAT_INTERVAL = 5000;
 const OFFLINE_THRESHOLD = 12000;
@@ -24,6 +25,7 @@ export function usePresence(userId, userName) {
   const [now, setNow] = useState(Date.now());
   const isInitialized = useRef(false);
   const timeOffset = useRef(0);
+  setTimeOffset(offset);
 
   useEffect(() => {
     const fetchWorldTime = async () => {
@@ -44,7 +46,9 @@ export function usePresence(userId, userName) {
 
         const serverTime = data.timestamp * 1000;
         const localTime = Date.now();
-        timeOffset.current = serverTime - localTime;
+        const offset = serverTime - localTime;
+        timeOffset.current = offset;
+        setTimeOffset(offset);
       } catch (error) {
 
       }
