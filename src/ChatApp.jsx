@@ -97,6 +97,7 @@ export default function ChatApp() {
     const dropdownRef = useRef(null);
     const lightboxRef = useRef(null);
     const { onlineUsers, updateMyPresence, onlineCount } = usePresence(address, userProfile?.username);
+    const handleNewMessageNotificationRef = useRef();
 
     const MESSAGES_PER_PAGE = 25;
 
@@ -505,7 +506,15 @@ export default function ChatApp() {
     }, [contract, loadLatestMessages, scrollToBottom]);
 
     const { notifyNewMessage } = useMessageSync(handleNewMessageNotification, address);
-    
+
+    useEffect(() => {
+        handleNewMessageNotificationRef.current = handleNewMessageNotification;
+    });
+
+    const stableHandleNewMessageNotification = useCallback(() => {
+        handleNewMessageNotificationRef.current?.();
+    }, []);
+        
     const handleSelectGif = (gifUrl) => {
         setSelectedGifUrl(gifUrl); 
         setSelectedImage(null);
