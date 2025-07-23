@@ -1116,43 +1116,41 @@ export default function ChatApp() {
     
             pollingIntervalRef.current = setInterval(async () => {
                 try {
-                    console.log("[Polling] Checando novas mensagens...");
+                    console.log("[Polling] Buscando últimas mensagens...");
             
-                    const totalMessages = await contract.contadorMensagens();
-                    const total = Number(totalMessages);
-                    const previous = lastMessageCountRef.current;
+                    const novaPagina = 0;
+                    const itensPorPagina = 10;
+                    const novasMensagens = await contract.obterMensagensDetalhadasPaginadas(novaPagina, itensPorPagina);
             
-                    console.log(`[Polling] Total atual no contrato: ${total}`);
-                    console.log(`[Polling] Total anterior local: ${previous}`);
+                    console.log("[Polling] Mensagens mais recentes recebidas:", novasMensagens.length);
             
-                    // Atualiza sempre o contador local
-                    lastMessageCountRef.current = total;
+                    const mensagensFiltradas = novasMensagens.filter(msg => {
+                        return !mensagensVisiveis.some(m => m.id.toString() === msg.id.toString());
+                    });
             
-                    if (total > previous) {
-                        const newMessagesCount = total - previous;
-                        console.log(`[Polling] Novas mensagens detectadas: ${newMessagesCount}`);
+                    if (mensagensFiltradas.length > 0) {
+                        console.log("[Polling] Novas mensagens detectadas:", mensagensFiltradas.map(m => m.id.toString()));
+            
+                        setMensagensVisiveis(prev => [...prev, ...mensagensFiltradas]);
             
                         const container = messagesContainerRef.current;
                         const isAtBottom = container
                             ? (container.scrollHeight - container.scrollTop - container.clientHeight) < container.clientHeight
                             : true;
             
-                        await loadLatestMessages(contract);
-            
                         if (isAtBottom) {
-                            console.log("[Polling] Usuário está no final — scroll automático.");
                             setTimeout(() => scrollToBottom(), 300);
                         } else {
-                            console.log("[Polling] Usuário não está no final — incrementando mensagens não vistas.");
-                            setUnseenMessages(prev => prev + newMessagesCount);
+                            setUnseenMessages(prev => prev + mensagensFiltradas.length);
                         }
                     } else {
-                        console.log("[Polling] Nenhuma nova mensagem.");
+                        console.log("[Polling] Nenhuma nova mensagem encontrada.");
                     }
                 } catch (error) {
-                    console.error("[Polling] Erro ao buscar mensagens:", error);
+                    console.error("[Polling] Erro buscando mensagens:", error);
                 }
             }, 5000);
+
 
         };
     
