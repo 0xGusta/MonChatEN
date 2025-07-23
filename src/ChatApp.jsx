@@ -1117,25 +1117,28 @@ export default function ChatApp() {
             pollingIntervalRef.current = setInterval(async () => {
                 try {
                     console.log("[Polling] Checando novas mensagens...");
-    
+            
                     const totalMessages = await contract.contadorMensagens();
                     const total = Number(totalMessages);
                     const previous = lastMessageCountRef.current;
-    
+            
                     console.log(`[Polling] Total atual no contrato: ${total}`);
                     console.log(`[Polling] Total anterior local: ${previous}`);
-    
+            
+                    // Atualiza sempre o contador local
+                    lastMessageCountRef.current = total;
+            
                     if (total > previous) {
                         const newMessagesCount = total - previous;
                         console.log(`[Polling] Novas mensagens detectadas: ${newMessagesCount}`);
-    
+            
                         const container = messagesContainerRef.current;
                         const isAtBottom = container
                             ? (container.scrollHeight - container.scrollTop - container.clientHeight) < container.clientHeight
                             : true;
-    
+            
                         await loadLatestMessages(contract);
-    
+            
                         if (isAtBottom) {
                             console.log("[Polling] Usuário está no final — scroll automático.");
                             setTimeout(() => scrollToBottom(), 300);
@@ -1143,8 +1146,6 @@ export default function ChatApp() {
                             console.log("[Polling] Usuário não está no final — incrementando mensagens não vistas.");
                             setUnseenMessages(prev => prev + newMessagesCount);
                         }
-    
-                        lastMessageCountRef.current = total;
                     } else {
                         console.log("[Polling] Nenhuma nova mensagem.");
                     }
@@ -1152,6 +1153,7 @@ export default function ChatApp() {
                     console.error("[Polling] Erro ao buscar mensagens:", error);
                 }
             }, 5000);
+
         };
     
         startPolling();
