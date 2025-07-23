@@ -1098,53 +1098,73 @@ export default function ChatApp() {
     }, [isInitialLoad]);
 
     useEffect(() => {
-
-        if (!isConnected || !contract || isAppLoading || !walletClient) { 
+        if (!isConnected || !contract || isAppLoading || !walletClient) {
+            console.log("[Polling] Parando polling: conexão ou contrato indisponível.");
             if (pollingIntervalRef.current) {
                 clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
             }
             return;
         }
     
         const startPolling = () => {
-
+            console.log("[Polling] Iniciando polling de mensagens...");
+    
             if (pollingIntervalRef.current) {
                 clearInterval(pollingIntervalRef.current);
             }
     
             pollingIntervalRef.current = setInterval(async () => {
                 try {
-
+                    console.log("[Polling] Checando novas mensagens...");
+    
                     const totalMessages = await contract.contadorMensagens();
-                    if (Number(totalMessages) > lastMessageCountRef.current) {
-                        const newMessagesCount = Number(totalMessages) - lastMessageCountRef.current;
+                    const total = Number(totalMessages);
+                    const previous = lastMessageCountRef.current;
+    
+                    console.log(`[Polling] Total atual no contrato: ${total}`);
+                    console.log(`[Polling] Total anterior local: ${previous}`);
+    
+                    if (total > previous) {
+                        const newMessagesCount = total - previous;
+                        console.log(`[Polling] Novas mensagens detectadas: ${newMessagesCount}`);
+    
                         const container = messagesContainerRef.current;
-                        const isAtBottom = container ? (container.scrollHeight - container.scrollTop - container.clientHeight) < container.clientHeight : true;
-                        
-                        await loadLatestMessages(contract); 
-                        
+                        const isAtBottom = container
+                            ? (container.scrollHeight - container.scrollTop - container.clientHeight) < container.clientHeight
+                            : true;
+    
+                        await loadLatestMessages(contract);
+    
                         if (isAtBottom) {
+                            console.log("[Polling] Usuário está no final — scroll automático.");
                             setTimeout(() => scrollToBottom(), 300);
                         } else {
+                            console.log("[Polling] Usuário não está no final — incrementando mensagens não vistas.");
                             setUnseenMessages(prev => prev + newMessagesCount);
                         }
+    
+                        lastMessageCountRef.current = total;
+                    } else {
+                        console.log("[Polling] Nenhuma nova mensagem.");
                     }
                 } catch (error) {
-                    console.error("Erro no polling:", error);
+                    console.error("[Polling] Erro ao buscar mensagens:", error);
                 }
-            }, 1000);
+            }, 5000);
         };
     
         startPolling();
-
+    
         return () => {
             if (pollingIntervalRef.current) {
+                console.log("[Polling] Limpando intervalo de polling.");
                 clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
             }
         };
-    
-
     }, [isConnected, contract, isAppLoading, walletClient]);
+
     
     useLayoutEffect(() => {
         const container = messagesContainerRef.current;
