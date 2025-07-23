@@ -16,10 +16,9 @@ import GifPicker from './components/GifPicker';
 import OnlineCounter from './components/OnlineCounter';
 import LinkConfirmationModal from './components/LinkConfirmationModal';
 import ConsoleModal from './components/ConsoleModal';
-import GameSelectionModal from './components/GameSelectionModal';
-import GameModal from './components/GameModal';
 import { useAccount, useDisconnect, useBalance, useWalletClient } from 'wagmi';
 import { BrowserProvider } from 'ethers';
+import { monadTestnet } from 'viem/chains';
 import PhotoSwipe from 'photoswipe';
 import 'photoswipe/dist/photoswipe.css';
 
@@ -82,17 +81,10 @@ export default function ChatApp() {
     const [rawProvider, setRawProvider] = useState(null);
     const [challenges, setChallenges] = useStateTogether('challenges', {});
     const [activeGame, setActiveGame] = useState(null);
-    const [showGameSelectionModal, setShowGameSelectionModal] = useState(false);
-    const [showGameModal, setShowGameModal] = useState(false);
-    const [gameOpponent, setGameOpponent] = useState(null);
-    const [gameType, setGameType] = useState(null);
-    const [gameSessionId, setGameSessionId] = useState(null);
-    const gameChallengeTimeoutRef = useRef(null);
-    const gameNotificationTimeoutRef = useRef(null);
-
     const messagesContainerRef = useRef(null);
     const messagesEndRef = useRef(null);
     const fileInputRef = useRef(null);
+    const emojiPickerRef = useRef(null);
     const pollingIntervalRef = useRef(null);
     const emojiButtonRef = useRef(null);
     const scrollAnchorRef = useRef(null);
@@ -121,7 +113,7 @@ export default function ChatApp() {
                     try {
                         return JSON.stringify(arg, null, 2);
                     } catch (e) {
-                        return 'Objeto não serializável';
+                        return 'Unserializable object';
                     }
                 }
                 return arg;
@@ -165,8 +157,8 @@ export default function ChatApp() {
         const setupApp = async () => {
 
             if (isConnected && walletClient && address) {
-                console.log("Configurando o aplicativo com carteira conectada:", address);
-                const isOnCorrectNetwork = chain?.id === MONAD_TESTNET.chainId;
+                console.log("Setting up app with connected wallet:", address);
+                const isOnCorrectNetwork = chain?.id === monadTestnet.id;
                 setIsWrongNetwork(!isOnCorrectNetwork);
     
                 if (!isOnCorrectNetwork) {
@@ -202,7 +194,7 @@ export default function ChatApp() {
                 }
     
             } else {
-                console.log("Configurando o aplicativo em modo somente leitura.");
+                console.log("Setting up app in read-only mode.");
                 setIsWrongNetwork(false);
                 setUserProfile(null);
                 
@@ -211,15 +203,15 @@ export default function ChatApp() {
 
                 for (const url of rpcUrls) {
                     try {
-                        console.log(`Tentando conectar ao RPC: ${url}`);
+                        console.log(`Attempting to connect to RPC: ${url}`);
                         const publicProvider = new ethers.JsonRpcProvider(url);
                         const readOnlyContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, publicProvider);
                         await readOnlyContract.contadorMensagens();
-                        console.log(`Conectado com sucesso ao RPC: ${url}`);
+                        console.log(`Successfully connected to RPC: ${url}`);
                         connectedContract = readOnlyContract;
                         break; 
                     } catch (e) {
-                        console.warn(`Falha ao conectar ao RPC ${url}. Tentando o próximo...`);
+                        console.warn(`Failed to connect to RPC ${url}. Trying next...`);
                     }
                 }
 
@@ -229,8 +221,8 @@ export default function ChatApp() {
                        await loadMessages(connectedContract);
                     }
                 } else {
-                    console.error("Não foi possível conectar a nenhum RPC da Monad Testnet.");
-                    showPopup('Não foi possível conectar à rede Monad. O serviço pode estar temporariamente indisponível.', 'error');
+                    console.error("Could not connect to any Monad Testnet RPCs.");
+                    showPopup('Could not connect to the Monad network. The service may be temporarily unavailable.', 'error');
                 }
             }
         };
@@ -241,7 +233,7 @@ export default function ChatApp() {
 
     useEffect(() => {
         if (!isConnected || isAppLoading) {
-            console.log("[Polling] Parando o polling: carteira não conectada ou aplicativo carregando.");
+            console.log("[Polling] Stopping polling: wallet not connected or app is loading.");
             if (pollingIntervalRef.current) {
                 clearInterval(pollingIntervalRef.current);
                 pollingIntervalRef.current = null;
@@ -250,52 +242,52 @@ export default function ChatApp() {
         }
     
         let readOnlyPollingContract = null;
-        const publicRpcUrls = MONAD_TESTNET.rpcUrls.default.http;
+        const publicRpcUrls = MONAD_TESTNET.rpcUrls;
     
         const setupPollingProvider = () => {
             if (!publicRpcUrls || publicRpcUrls.length === 0) {
-                console.error("[Configuração do Polling] A lista de URLs RPC está vazia. O polling não pode funcionar.");
+                console.error("[Polling Setup] RPC URL list is empty. Polling cannot function.");
                 return;
             }
             for (const url of publicRpcUrls) {
                 try {
-                    console.log(`[Configuração do Polling] Tentando RPC público para polling: ${url}`);
+                    console.log(`[Polling Setup] Attempting public RPC for polling: ${url}`);
                     const publicProvider = new ethers.JsonRpcProvider(url);
                     readOnlyPollingContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, publicProvider);
-                    console.log(`[Configuração do Polling] RPC público ${url} selecionado para polling.`);
+                    console.log(`[Polling Setup] Public RPC ${url} selected for polling.`);
                     return;
                 } catch (e) {
-                    console.warn(`[Configuração do Polling] Falha ao conectar ao RPC público ${url}.`);
+                    console.warn(`[Polling Setup] Failed to connect to public RPC ${url}.`);
                 }
             }
-            console.error("[Configuração do Polling] Não foi possível conectar a nenhum RPC público para polling. O polling pode não funcionar.");
+            console.error("[Polling Setup] Could not connect to any public RPCs for polling. Polling may not function.");
         };
     
         setupPollingProvider();
     
         const startPolling = () => {
             if (!readOnlyPollingContract) {
-                console.error("[Polling] Nenhum contrato somente leitura disponível. O polling não pode ser iniciado.");
+                console.error("[Polling] No read-only contract is available. Polling cannot start.");
                 return;
             }
-            console.log("[Polling] Iniciando o polling de mensagens com um provedor somente leitura dedicado.");
+            console.log("[Polling] Starting message polling with a dedicated read-only provider.");
             if (pollingIntervalRef.current) {
                 clearInterval(pollingIntervalRef.current);
             }
             pollingIntervalRef.current = setInterval(async () => {
                 try {
-                    console.log("[Polling] Verificando novas mensagens usando o provedor público...");
+                    console.log("[Polling] Checking for new messages using public provider...");
                     const blockNumber = await readOnlyPollingContract.runner.provider.getBlockNumber();
-                    console.log(`[Polling] Bloco atual (via RPC público): ${blockNumber}`);
+                    console.log(`[Polling] Current block (via public RPC): ${blockNumber}`);
                     const totalMessagesBigInt = await readOnlyPollingContract.contadorMensagens();
                     const total = Number(totalMessagesBigInt);
                     const previous = lastMessageCountRef.current;
-                    console.log(`[Polling] Total atual no contrato (via RPC público): ${total}`);
-                    console.log(`[Polling] Total local anterior: ${previous}`);
+                    console.log(`[Polling] Current total on contract (via public RPC): ${total}`);
+                    console.log(`[Polling] Previous local total: ${previous}`);
     
                     if (total > previous) {
                         const newMessagesCount = total - previous;
-                        console.log(`[Polling] Novas mensagens detectadas: ${newMessagesCount}`);
+                        console.log(`[Polling] New messages detected: ${newMessagesCount}`);
                         
                         await loadLatestMessages(total); 
     
@@ -304,20 +296,20 @@ export default function ChatApp() {
                             ? (container.scrollHeight - container.scrollTop - container.clientHeight) < container.clientHeight
                             : true;
                         if (isAtBottom) {
-                            console.log("[Polling] O usuário está no final - rolagem automática.");
+                            console.log("[Polling] User is at bottom — auto-scrolling.");
                             setTimeout(() => scrollToBottom(), 300);
                         } else {
-                            console.log("[Polling] O usuário não está no final - incrementando mensagens não vistas.");
+                            console.log("[Polling] User is not at bottom — incrementing unseen messages.");
                             setUnseenMessages(prev => prev + newMessagesCount);
                         }
-                        console.log(`[Polling] ATUALIZANDO a contagem local de ${previous} para ${total}.`);
+                        console.log(`[Polling] UPDATING local count from ${previous} to ${total}.`);
                         lastMessageCountRef.current = total;
                     } else {
-                        console.log("[Polling] Nenhuma nova mensagem.");
+                        console.log("[Polling] No new messages.");
                     }
                 } catch (error) {
-                    console.error("[Polling] Erro ao buscar mensagens com o provedor público:", error);
-                    console.log("[Polling] Tentando reconfigurar o provedor de polling...");
+                    console.error("[Polling] Error fetching messages with public provider:", error);
+                    console.log("[Polling] Attempting to re-setup the polling provider...");
                     setupPollingProvider();
                 }
             }, 5000);
@@ -327,7 +319,7 @@ export default function ChatApp() {
     
         return () => {
             if (pollingIntervalRef.current) {
-                console.log("[Polling] Limpando o intervalo de polling.");
+                console.log("[Polling] Clearing polling interval.");
                 clearInterval(pollingIntervalRef.current);
                 pollingIntervalRef.current = null;
             }
@@ -354,7 +346,7 @@ export default function ChatApp() {
     }, []);
 
     useEffect(() => {
-        
+
         return () => {
             if (lightboxRef.current) {
                 lightboxRef.current.destroy();
@@ -410,7 +402,7 @@ export default function ChatApp() {
             });
         };
 
-        showPopup('Carregando galeria...', 'info', true);
+        showPopup('Loading gallery...', 'info', true);
 
         const dataSource = await Promise.all(imageMessages.map(async (msg) => {
             const imageUrl = msg.imageHash.startsWith('http') ? msg.imageHash : getIPFSUrl(msg.imageHash);
@@ -457,165 +449,37 @@ export default function ChatApp() {
                 const file = items[i].getAsFile();
                 setSelectedImage(file);
                 setSelectedGifUrl(null);
-                showPopup('Imagem colada da área de transferência!', 'success');
+                showPopup('Image pasted from clipboard!', 'success');
                 break;
             }
         }
     }, [setSelectedImage, setSelectedGifUrl, showPopup]);
 
     useEffect(() => {
-        const myChallenges = Object.entries(challenges).filter(([, challenge]) =>
-            challenge.opponentAddress?.toLowerCase() === address?.toLowerCase() && challenge.status === 'pending'
+        const myAcceptedChallenge = Object.entries(challenges).find(([, challenge]) =>
+            challenge?.challenger?.address?.toLowerCase() === address?.toLowerCase() &&
+            challenge.status === 'accepted'
         );
 
-        myChallenges.forEach(([challengeId, challenge]) => {
-            if (!gameChallengeTimeoutRef.current) {
-                showPopup(
-                    `Você foi desafiado por ${challenge.challengerUsername} para ${challenge.gameType}! Aceitando em 10s...`,
-                    'info',
-                    false,
-                    <div className="flex justify-around mt-2">
-                        <button onClick={() => handleAcceptChallenge(challengeId)} className="btn btn-primary mr-2">Aceitar</button>
-                        <button onClick={() => handleDeclineChallenge(challengeId)} className="btn btn-secondary">Recusar</button>
-                    </div>
-                );
-                if (gameChallengeTimeoutRef.current) {
-                    clearTimeout(gameChallengeTimeoutRef.current);
-                }
-                gameChallengeTimeoutRef.current = setTimeout(() => {
-                    handleDeclineChallenge(challengeId, true);
-                }, 10000);
-            }
-        });
+        if (myAcceptedChallenge && !activeGame) {
+            const [challengeId, challengeData] = myAcceptedChallenge;
 
-        const mySentChallenges = Object.entries(challenges).filter(([, challenge]) =>
-            challenge.challengerAddress?.toLowerCase() === address?.toLowerCase() &&
-            (challenge.status === 'accepted' || challenge.status === 'declined' || challenge.status === 'expired') &&
-            !challenge.notified
-        );
+            setGamePlayers([
+                { address: challengeData.challenger.address, username: challengeData.challenger.username },
+                { address: challengeData.opponent.address, username: challengeData.opponent.username }
+            ]);
+            setGameSessionId(challengeData.gameSessionId);
+            setActiveGame(challengeData.game);
 
-        mySentChallenges.forEach(([challengeId, challenge]) => {
-            if (challenge.status === 'accepted') {
-                showPopup(`${challenge.opponentUsername} aceitou seu desafio de ${challenge.gameType}!`, 'success');
-                setGameOpponent({ address: challenge.opponentAddress, username: challenge.opponentUsername });
-                setGameType(challenge.gameType);
-                setGameSessionId(challengeId);
-                setShowGameModal(true);
-                setChallenges(prev => ({ ...prev, [challengeId]: { ...prev[challengeId], notified: true } }));
-                
-            } else if (challenge.status === 'declined') {
-                showPopup(`${challenge.opponentUsername} recusou seu desafio de ${challenge.gameType}.`, 'warning');
-                setChallenges(prev => ({ ...prev, [challengeId]: { ...prev[challengeId], notified: true } }));
-            } else if (challenge.status === 'expired') {
-                showPopup(`${challenge.opponentUsername} não respondeu ao seu desafio de ${challenge.gameType}.`, 'warning');
-                setChallenges(prev => ({ ...prev, [challengeId]: { ...prev[challengeId], notified: true } }));
-            }
-            if (gameNotificationTimeoutRef.current) {
-                clearTimeout(gameNotificationTimeoutRef.current);
-            }
-            gameNotificationTimeoutRef.current = setTimeout(() => {
-                setChallenges(prev => {
-                    const newChallenges = { ...prev };
-                    delete newChallenges[challengeId];
-                    return newChallenges;
-                });
-            }, 5000);
-        });
-
-        const activeGameChallenge = Object.entries(challenges).find(([, challenge]) =>
-            (challenge.challengerAddress?.toLowerCase() === address?.toLowerCase() ||
-             challenge.opponentAddress?.toLowerCase() === address?.toLowerCase()) &&
-            challenge.status === 'accepted' &&
-            !activeGame
-        );
-
-        if (activeGameChallenge) {
-            const [challengeId, challengeData] = activeGameChallenge;
-            if (challengeData.challengerAddress?.toLowerCase() === address?.toLowerCase()) {
-                setGameOpponent({ address: challengeData.opponentAddress, username: challengeData.opponentUsername });
-            } else {
-                setGameOpponent({ address: challengeData.challengerAddress, username: challengeData.challengerUsername });
-            }
-            setGameType(challengeData.gameType);
-            setGameSessionId(challengeId);
-            setShowGameModal(true);
-            setActiveGame(true);
-            setChallenges(prev => ({ ...prev, [challengeId]: { ...prev[challengeId], status: 'started' } }));
-        }
-
-
-    }, [challenges, address, setChallenges, activeGame]);
-
-
-    const handleChallenge = (opponentAddress, opponentUsername) => {
-        setSelectedUserAddress(opponentAddress);
-        setSelectedUserProfile({ username: opponentUsername });
-        setShowProfileModal(false);
-        setShowGameSelectionModal(true);
-    };
-
-    const initiateGameChallenge = (gameType) => {
-        const challengeId = `${Date.now()}-${address.substring(2, 6)}-${selectedUserAddress.substring(2, 6)}`;
-        setChallenges(prev => ({
-            ...prev,
-            [challengeId]: {
-                challengerAddress: address,
-                challengerUsername: userProfile.username,
-                opponentAddress: selectedUserAddress,
-                opponentUsername: selectedUserProfile.username,
-                gameType: gameType,
-                status: 'pending',
-                timestamp: Date.now(),
-                notified: false
-            }
-        }));
-        showPopup(`Desafio enviado para ${selectedUserProfile.username} para ${gameType}! Aguardando resposta...`, 'info', true);
-        setShowGameSelectionModal(false);
-        setTimeout(() => {
             setChallenges(prev => {
-                const currentChallenge = prev[challengeId];
-                if (currentChallenge && currentChallenge.status === 'pending') {
-                    showPopup(`Desafio para ${currentChallenge.opponentUsername} para ${currentChallenge.gameType} expirou.`, 'warning');
-                    return { ...prev, [challengeId]: { ...currentChallenge, status: 'expired' } };
+                const newChallenges = { ...prev };
+                if (newChallenges[challengeId]) {
+                    newChallenges[challengeId].status = 'started';
                 }
-                return prev;
+                return newChallenges;
             });
-        }, 10000);
-    };
-
-    const handleAcceptChallenge = (challengeId) => {
-        if (gameChallengeTimeoutRef.current) {
-            clearTimeout(gameChallengeTimeoutRef.current);
-            gameChallengeTimeoutRef.current = null;
         }
-        setChallenges(prev => ({ ...prev, [challengeId]: { ...prev[challengeId], status: 'accepted' } }));
-        showPopup('Desafio aceito! Iniciando o jogo...', 'success');
-    };
-
-    const handleDeclineChallenge = (challengeId, expired = false) => {
-        if (gameChallengeTimeoutRef.current) {
-            clearTimeout(gameChallengeTimeoutRef.current);
-            gameChallengeTimeoutRef.current = null;
-        }
-        setChallenges(prev => ({ ...prev, [challengeId]: { ...prev[challengeId], status: expired ? 'expired' : 'declined' } }));
-        showPopup(expired ? 'Desafio expirado.' : 'Desafio recusado.', 'warning');
-    };
-
-    const handleEndGame = () => {
-        setShowGameModal(false);
-        setActiveGame(null);
-        setGameOpponent(null);
-        setGameType(null);
-        setGameSessionId(null);
-        setChallenges(prev => {
-            const newChallenges = { ...prev };
-            const currentSessionId = Object.keys(newChallenges).find(id => newChallenges[id].challengerAddress?.toLowerCase() === address?.toLowerCase() || newChallenges[id].opponentAddress?.toLowerCase() === address?.toLowerCase());
-            if (currentSessionId) {
-                delete newChallenges[currentSessionId];
-            }
-            return newChallenges;
-        });
-    };
+    }, [challenges, address, activeGame, setChallenges]);
 
     useLayoutEffect(() => {
         const container = messagesContainerRef.current;
@@ -649,6 +513,199 @@ export default function ChatApp() {
         setPopup(p => p ? { ...p, isExiting: true } : null);
     };
 
+    const processAndSetMessages = async (newRawMessages, contractInstance) => {
+        const addressesToFetch = new Set();
+        newRawMessages.forEach(msg => {
+            const remetente = msg[0];
+            if (remetente && remetente !== ethers.ZeroAddress && !userProfilesCache.has(remetente.toLowerCase())) {
+                addressesToFetch.add(remetente);
+            }
+        });
+
+        for (const addressToFetch of addressesToFetch) {
+            try {
+                const profile = await contractInstance.obterPerfilUsuario(addressToFetch);
+                if (profile.exists) {
+                    const role = await contractInstance.obterRoleUsuario(addressToFetch);
+                    const senderProfile = {
+                        username: profile.username,
+                        profilePicHash: profile.profilePicHash,
+                        exists: profile.exists,
+                        role: Number(role)
+                    };
+                    userProfilesCache.set(addressToFetch.toLowerCase(), senderProfile);
+                }
+               await new Promise(resolve => setTimeout(resolve, 300));
+            } catch (e) {
+                console.error(`Error fetching profile for ${addressToFetch}:`, e);
+            }
+        }
+
+        const processedMessages = newRawMessages.map(msg => {
+            if (!msg || typeof msg !== 'object' || !msg[0]) {
+                console.warn("Skipping invalid message object from contract:", msg);
+                return null;
+            }
+            const remetente = msg[0];
+            const senderProfile = userProfilesCache.get(remetente.toLowerCase());
+    
+            return {
+                id: Number(msg.id),
+                remetente: msg[0],
+                usuario: msg[1],
+                conteudo: msg[2],
+                imageHash: msg[3],
+                timestamp: Number(msg[4]),
+                excluida: msg[5],
+                respondeA: Number(msg[6]),
+                senderProfile
+            };
+        }).filter(Boolean);
+    
+        setMessages(prevMessages => {
+            const messageMap = new Map(prevMessages.map(m => [m.id, m]));
+            processedMessages.forEach(m => messageMap.set(m.id, m));
+            
+            const allMessages = Array.from(messageMap.values());
+            allMessages.sort((a, b) => a.timestamp - b.timestamp);
+            
+            return allMessages;
+        });
+    };
+
+    const loadMessages = async (contractInstance) => {
+        try {
+            const totalMessages = Number(await contractInstance.contadorMensagens());
+            const [paginatedMessages, proximaPagina] = await contractInstance.obterMensagensPaginadas(0, MESSAGES_PER_PAGE);
+    
+            const messagesWithIds = paginatedMessages.map((msg, index) => ({
+                ...msg,
+                id: totalMessages - index
+            }));
+    
+            await processAndSetMessages([...messagesWithIds].reverse(), contractInstance);
+    
+            if (Number(proximaPagina) > 0) {
+                setNextPage(Number(proximaPagina));
+                setHasMoreMessages(true);
+            } else {
+                setHasMoreMessages(false);
+            }
+        } catch (error) {
+            console.error('Error loading messages:', error);
+        }
+    };
+    
+    const loadMoreMessages = async () => {
+        if (isLoadingMore || !hasMoreMessages) return;
+    
+        if (messagesContainerRef.current) {
+            scrollAnchorRef.current = { scrollHeight: messagesContainerRef.current.scrollHeight };
+        }
+        setIsLoadingMore(true);
+    
+        try {
+            let contractToUse = contract;
+            if (!contractToUse) {
+                const publicProvider = new ethers.JsonRpcProvider(MONAD_TESTNET.rpcUrls[0]);
+                contractToUse = new ethers.Contract(CONTRACT_ADDRESS, ABI, publicProvider);
+            }
+    
+            const totalMessages = Number(await contractToUse.contadorMensagens());
+            const [paginatedMessages, proximaPagina] = await contractToUse.obterMensagensPaginadas(nextPage, MESSAGES_PER_PAGE);
+    
+            if (paginatedMessages.length > 0) {
+                const idOfFirstMessageInPage = totalMessages - (nextPage * MESSAGES_PER_PAGE);
+                const messagesWithIds = paginatedMessages.map((msg, index) => ({
+                    ...msg,
+                    id: idOfFirstMessageInPage - index
+                }));
+                await processAndSetMessages([...messagesWithIds].reverse(), contractToUse, true);
+            }
+            
+            if (Number(proximaPagina) > 0) {
+                setNextPage(Number(proximaPagina));
+                setHasMoreMessages(true);
+            } else {
+                setHasMoreMessages(false);
+            }
+        } catch (error) {
+            console.error("Error loading more messages:", error);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    };
+    
+    const loadLatestMessages = async (totalMessagesOnChain) => {
+        if (isFetchingNewerMessages.current) return;
+        console.log(`[Loader] Starting to load latest messages. Expecting total of ${totalMessagesOnChain}.`);
+    
+        try {
+            isFetchingNewerMessages.current = true;
+            const lastIdInState = lastMessageCountRef.current;
+    
+            if (totalMessagesOnChain > lastIdInState) {
+                const newMessages = [];
+                
+                const publicProvider = new ethers.JsonRpcProvider(MONAD_TESTNET.rpcUrls[0]);
+                const readerContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, publicProvider);
+                console.log("[Loader] Created a temporary public provider to fetch message details.");
+    
+                for (let i = lastIdInState + 1; i <= totalMessagesOnChain; i++) {
+                    console.log(`[Loader] Fetching message ID: ${i}`);
+                    const msg = await readerContract.obterMensagem(i);
+                    newMessages.push({ ...msg, id: i });
+                }
+    
+                if (newMessages.length > 0) {
+                    console.log(`[Loader] Fetched ${newMessages.length} new messages. Processing them now...`);
+                    await processAndSetMessages(newMessages, readerContract);
+                }
+            } else {
+                 console.log(`[Loader] No new messages to load. Chain total (${totalMessagesOnChain}) is not greater than local total (${lastIdInState}).`);
+            }
+        } catch (error) {
+            console.error('[Loader] Error loading latest messages:', error);
+        } finally {
+            isFetchingNewerMessages.current = false;
+            console.log("[Loader] Finished loading latest messages.");
+        }
+    };
+     
+    const handleSelectGif = (gifUrl) => {
+        setSelectedGifUrl(gifUrl); 
+        setSelectedImage(null);
+        setShowGifPicker(false);   
+    };
+
+    const handleScroll = (e) => {
+        const { scrollTop, scrollHeight, clientHeight } = e.target;
+        const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < clientHeight;
+        setShowScrollButton(!isAtBottom);
+
+        if (isAtBottom) {
+            const scrollButton = document.querySelector('.scroll-to-bottom');
+            if (scrollButton) scrollButton.classList.remove('new-message');
+            setUnseenMessages(0);
+        }
+    };
+
+    useEffect(() => {
+        if (!popup) return;
+
+        if (popup.isExiting) {
+            const removeTimer = setTimeout(() => {
+                setPopup(null);
+            }, 300);
+            return () => clearTimeout(removeTimer);
+        } else if (!popup.isLoading) {
+            const exitTimer = setTimeout(() => {
+                hidePopup();
+            }, 3000);
+            return () => clearTimeout(exitTimer);
+        }
+    }, [popup]);
+
     useEffect(() => {
         
         if (availableWallets.length > 0 && !isConnected && !hasAttemptedAutoConnect.current) {
@@ -658,8 +715,11 @@ export default function ChatApp() {
                 const walletToReconnect = availableWallets.find(w => w.info.rdns === lastRdns);
 
                 if (walletToReconnect) {
-                    console.log(`Tentando reconexão automática com ${walletToReconnect.info.name}...`);
+                    console.log(`Attempting automatic reconnection with ${walletToReconnect.info.name}...`);
+
                     hasAttemptedAutoConnect.current = true;
+                    
+                    handleConnect(walletToReconnect.provider, walletToReconnect.info);
                 }
             }
         }
@@ -667,33 +727,27 @@ export default function ChatApp() {
 
     
     const initiateConnection = async (walletProvider, walletName) => {
-        showPopup(`Conectando com ${walletName}...`, 'info', true);
+        showPopup(`Connecting with ${walletName}...`, 'info', true);
         try {
             
             const accounts = await walletProvider.request({ method: 'eth_requestAccounts' });
             if (accounts.length === 0) {
                 hidePopup();
-                showPopup('Nenhuma conta selecionada', 'error');
+                showPopup('No account selected', 'error');
                 return;
             }
 
             
             try {
-                await walletProvider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: `0x${MONAD_TESTNET.chainId.toString(16)}` }] });
+                await walletProvider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: MONAD_TESTNET.chainId }] });
             } catch (switchError) {
                 
                 if (switchError.code === 4902) {
-                    await walletProvider.request({ method: 'wallet_addEthereumChain', params: [{ 
-                        chainId: `0x${MONAD_TESTNET.chainId.toString(16)}`,
-                        chainName: MONAD_TESTNET.chainName,
-                        rpcUrls: MONAD_TESTNET.rpcUrls.default.http,
-                        nativeCurrency: MONAD_TESTNET.nativeCurrency,
-                        blockExplorerUrls: MONAD_TESTNET.blockExplorerUrls
-                    }] });
+                    await walletProvider.request({ method: 'wallet_addEthereumChain', params: [MONAD_TESTNET] });
                 } else {
                     
                     hidePopup();
-                    showPopup('Por favor, mude para a rede Monad Testnet em sua carteira.', 'warning');
+                    showPopup('Please switch to the Monad Testnet network in your wallet.', 'warning');
                     return;
                 }
             }
@@ -730,14 +784,14 @@ export default function ChatApp() {
                 const isOwnerResult = ownerAddress.toLowerCase() === userAddress.toLowerCase();
                 const finalIsModerator = isOwnerResult || isModeratorResult; 
                 const userRole = await contract.obterRoleUsuario(userAddress);
-                const profile = { username: profileData.username, profilePicHash: profileData.profilePicHash, exists: true, role: Number(userRole) };
-                setUserProfile(profile);
-                userProfilesCache.set(userAddress.toLowerCase(), profile);
+                const userProfile = { username: profileData.username, profilePicHash: profileData.profilePicHash, exists: true, role: Number(userRole) };
+                setUserProfile(userProfile);
+                userProfilesCache.set(userAddress.toLowerCase(), userProfile);
                 setIsOwner(isOwnerResult);
                 setIsModerator(finalIsModerator);
                 setBalance(ethers.formatEther(balanceData));
                 hidePopup();
-                showPopup('Carteira conectada!', 'success');
+                showPopup('Wallet connected!', 'success');
             }
 
             if (messages.length === 0) {
@@ -745,11 +799,11 @@ export default function ChatApp() {
             }
 
         } catch (error) {
-            console.error(`Erro ao conectar com a Carteira:`, error);
+            console.error(`Error connecting with ${walletName}:`, error);
             hidePopup();
             const friendlyMessage = getFriendlyErrorMessage(error);
-            showPopup(`Erro: ${friendlyMessage}`, 'error');
-            disconnect();
+            showPopup(`Error: ${friendlyMessage}`, 'error');
+            disconnectWallet();
         }
     };
 
@@ -770,11 +824,11 @@ export default function ChatApp() {
         setMessages([]);
         setTimeout(async () => {
             try {
-                const publicProvider = new ethers.JsonRpcProvider(MONAD_TESTNET.rpcUrls.default.http[0]);
+                const publicProvider = new ethers.JsonRpcProvider(MONAD_TESTNET.rpcUrls[0]);
                 const readOnlyContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, publicProvider);
                 await loadMessages(readOnlyContract);
             } catch (error) {
-                console.error("Erro ao recarregar mensagens após desconectar:", error);
+                console.error("Error reloading messages after disconnecting:", error);
             } finally {
                 setIsInitialLoad(false);
             }
@@ -800,7 +854,7 @@ export default function ChatApp() {
                 }, 3000);
             }
         } else {
-            showPopup("A mensagem respondida não está carregada no chat.", 'info');
+            showPopup("The replied message is not loaded in the chat.", 'info');
         }
     };
 
@@ -812,17 +866,17 @@ export default function ChatApp() {
                 const profile = {
                     username: profileData.username,
                     profilePicHash: profileData.profilePicHash,
-                    exists: profileData.exists,
+                    exists: true,
                     role: Number(userRole)
                 };
-                userProfilesCache.set(userAddress.toLowerCase(), profile);
                 setUserProfile(profile);
+                userProfilesCache.set(userAddress.toLowerCase(), profile);
             } else {
                 setUserProfile({ exists: false, username: '', profilePicHash: '', role: 0 });
             }
         } catch (error) {
-            console.error("Erro ao carregar perfil do usuário:", error);
-            showPopup('Não foi possível atualizar o perfil do usuário.', 'error');
+            console.error("Error loading user profile:", error);
+            showPopup('Could not refresh user profile.', 'error');
         }
     };
     
@@ -830,7 +884,7 @@ export default function ChatApp() {
         
         if (!newMessage.trim() && !selectedImage && !selectedGifUrl) return;
 
-        showPopup('Enviando mensagem...', 'info', true);
+        showPopup('Sending message...', 'info', true);
 
         try {
             const textContent = newMessage.trim();
@@ -856,7 +910,7 @@ export default function ChatApp() {
             setEditingMessage(null);
 
             hidePopup();
-            showPopup('Mensagem enviada!', 'success');
+            showPopup('Message sent!', 'success');
             
         } catch (error) {
             hidePopup();
@@ -870,11 +924,11 @@ export default function ChatApp() {
 
     const editMessage = async (messageId, newContent) => {
         try {
-            showPopup('Editando mensagem...', 'info', true);
+            showPopup('Editing message...', 'info', true);
             const tx = await contract.editarMensagem(messageId, newContent);
             await tx.wait();
             hidePopup();
-            showPopup('Mensagem editada!', 'success');
+            showPopup('Message edited!', 'success');
             setEditingMessage(null);
             setNewMessage('');
             
@@ -887,11 +941,11 @@ export default function ChatApp() {
 
     const deleteMessage = async (messageId) => {
         try {
-            showPopup('Excluindo mensagem...', 'info', true);
+            showPopup('Deleting message...', 'info', true);
             const tx = await contract.excluirMensagem(messageId);
             await tx.wait();
             hidePopup();
-            showPopup('Mensagem excluída!', 'success');
+            showPopup('Message deleted!', 'success');
             
         } catch (error) {
             hidePopup();
@@ -902,11 +956,11 @@ export default function ChatApp() {
 
     const registerUser = async (username, profilePicHash = '') => { 
         try { 
-            showPopup('Registrando usuário...', 'info', true); 
+            showPopup('Registering user...', 'info', true); 
             const tx = await contract.registrarUsuario(username, profilePicHash); 
             await tx.wait(); 
             hidePopup(); 
-            showPopup('Usuário registrado com sucesso!', 'success'); 
+            showPopup('User registered successfully!', 'success'); 
             await loadUserProfile(contract, address); 
 
             if (provider && address) {
@@ -923,11 +977,11 @@ export default function ChatApp() {
     
     const updateProfile = async (username, profilePicHash) => {
         try {
-            showPopup('Atualizando perfil...', 'info', true);
+            showPopup('Updating profile...', 'info', true);
             const tx = await contract.atualizarPerfil(username, profilePicHash);
             await tx.wait();
             hidePopup();
-            showPopup('Perfil atualizado!', 'success');
+            showPopup('Profile updated!', 'success');
             await loadUserProfile(contract, address);
         } catch (error) {
             hidePopup();
@@ -940,11 +994,11 @@ export default function ChatApp() {
     const sendMON = async (recipientAddress, amount) => {
         try {
             if (!walletClient) {
-                showPopup('Carteira não conectada', 'error');
+                showPopup('Wallet not connected', 'error');
                 return;
             }
 
-            showPopup('Enviando MON...', 'info', true);
+            showPopup('Sending MON...', 'info', true);
 
             const currentSigner = await walletClientToSigner(walletClient);
 
@@ -954,7 +1008,7 @@ export default function ChatApp() {
             await tx.wait();
 
             hidePopup();
-            showPopup('MON enviado com sucesso!', 'success');
+            showPopup('MON sent successfully!', 'success');
 
             refetchBalance();
 
@@ -970,14 +1024,14 @@ export default function ChatApp() {
         try {
             const userAddress = await contract.usernameToAddress(username);
             if (userAddress === ethers.ZeroAddress) {
-                showPopup('Usuário não encontrado', 'error');
+                showPopup('User not found', 'error');
                 return;
             }
-            showPopup('Banindo usuário...', 'info', true);
+            showPopup('Banning user...', 'info', true);
             const tx = await contract.banirUsuario(userAddress);
             await tx.wait();
             hidePopup();
-            showPopup('Usuário banido!', 'success');
+            showPopup('User banned!', 'success');
             
         } catch (error) {
             hidePopup();
@@ -991,14 +1045,14 @@ export default function ChatApp() {
         try {
             const userAddress = await contract.usernameToAddress(username);
             if (userAddress === ethers.ZeroAddress) {
-                showPopup('Usuário não encontrado', 'error');
+                showPopup('User not found', 'error');
                 return;
             }
-            showPopup('Desbanindo usuário...', 'info', true);
+            showPopup('Unbanning user...', 'info', true);
             const tx = await contract.desbanirUsuario(userAddress);
             await tx.wait();
             hidePopup();
-            showPopup('Usuário desbanido!', 'success');
+            showPopup('User unbanned!', 'success');
         } catch (error) {
             hidePopup();
             const friendlyMessage = getFriendlyErrorMessage(error);
@@ -1011,14 +1065,14 @@ export default function ChatApp() {
         try {
             const userAddress = await contract.usernameToAddress(username);
             if (userAddress === ethers.ZeroAddress) {
-                showPopup('Usuário não encontrado', 'error');
+                showPopup('User not found', 'error');
                 return;
             }
-            showPopup('Adicionando moderador...', 'info', true);
+            showPopup('Adding moderator...', 'info', true);
             const tx = await contract.adicionarModerador(userAddress);
             await tx.wait();
             hidePopup();
-            showPopup('Moderador adicionado!', 'success');
+            showPopup('Moderator added!', 'success');
         } catch (error) {
             hidePopup();
             const friendlyMessage = getFriendlyErrorMessage(error);
@@ -1030,14 +1084,14 @@ export default function ChatApp() {
         try {
             const userAddress = await contract.usernameToAddress(username);
             if (userAddress === ethers.ZeroAddress) {
-                showPopup('Usuário não encontrado', 'error');
+                showPopup('User not found', 'error');
                 return;
             }
-            showPopup('Removendo moderador...', 'info', true);
+            showPopup('Removing moderator...', 'info', true);
             const tx = await contract.removerModerador(userAddress);
             await tx.wait();
             hidePopup();
-            showPopup('Moderador removido!', 'success');
+            showPopup('Moderator removed!', 'success');
         } catch (error) {
             hidePopup();
             const friendlyMessage = getFriendlyErrorMessage(error);
@@ -1068,7 +1122,7 @@ export default function ChatApp() {
             setSelectedUserProfile(profile);
             setShowProfileModal(true);
         } catch (error) {
-            console.error('Erro ao carregar perfil:', error);
+            console.error('Error loading profile:', error);
         }
     };
 
@@ -1089,7 +1143,7 @@ export default function ChatApp() {
         const file = event.target.files[0];
         if (file) {
             if (file.size > 10 * 1024 * 1024) {
-                showPopup('Arquivo muito grande. Máximo 10MB.', 'error');
+                showPopup('File too large. Maximum 10MB.', 'error');
                 return;
             }
             setSelectedImage(file);
@@ -1150,14 +1204,14 @@ export default function ChatApp() {
         const initApp = async () => {
 
             try {
-                const publicProvider = new ethers.JsonRpcProvider(MONAD_TESTNET.rpcUrls.default.http[0]);
+                const publicProvider = new ethers.JsonRpcProvider(MONAD_TESTNET.rpcUrls[0]);
                 const readOnlyContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, publicProvider);
 
                 await loadMessages(readOnlyContract);
             } catch (error) {
-                console.error("Erro ao inicializar:", error);
+                console.error("Error initializing:", error);
                 if (error.code === -32007 || (error.error && error.error.code === -32007)) {
-                    showPopup('A rede está congestionada. Por favor, recarregue a página em alguns instantes.', 'error', true);
+                    showPopup('The network is congested. Please reload the page in a few moments.', 'error', true);
                 }
             } finally {
 
@@ -1193,11 +1247,11 @@ export default function ChatApp() {
 
     const handleAccountsChanged = (accounts) => {
         if (accounts.length === 0) {
-            showPopup("Carteira desconectada.", "warning");
+            showPopup("Wallet disconnected.", "warning");
             disconnectWallet();
         } else {
 
-            initiateConnection(rawProvider, 'Carteira');
+            initiateConnection(rawProvider, 'Wallet');
         }
     };
 
@@ -1210,7 +1264,7 @@ export default function ChatApp() {
             
             setIsWrongNetwork(!onCorrectNetwork);
         } catch (error) {
-            console.error("Erro ao verificar a rede:", error);
+            console.error("Error checking network:", error);
             setIsWrongNetwork(true);
         }
     };
@@ -1296,12 +1350,12 @@ export default function ChatApp() {
             <header className="header-fixed flex items-center justify-between px-4">
                 <div className="flex items-center gap-3">
                     <div className="logo">
-                        <img src="/images/logo.png" title="Obrigado por usar!" alt="Logo"></img>
+                        <img src="/images/logo.png" title="Thank you for using!" alt="Logo"></img>
                     </div>
                     <div className="hidden sm:block">
                         <div className={`status-indicator ${isConnected ? 'status-connected' : 'status-disconnected'}`}>
                             <i className="fas fa-circle text-xs"></i>
-                            {isConnected ? 'Conectado' : 'Somente Leitura'}
+                            {isConnected ? 'Connected' : 'Read-Only'}
                         </div>
                         {isConnected && <OnlineCounter count={onlineCount} />}
                     </div>
@@ -1310,7 +1364,7 @@ export default function ChatApp() {
                     {isConnected ? (
                         <>
                             <div className="balance-display">
-                                <div className="balance-amount" title="Seu saldo de MONs">
+                                <div className="balance-amount" title="Your MONs balance">
                                     <img src="/images/monad.png" alt="Monad token">
                                     </img> {parseFloat(balance).toFixed(2)}
                                 </div>
@@ -1330,6 +1384,7 @@ export default function ChatApp() {
 
                                         <hr className="my-1 border-gray-600" />
                                         
+
                                         <div
                                             className="dropdown-item"
                                             onClick={() => {
@@ -1337,7 +1392,7 @@ export default function ChatApp() {
                                                 setShowDropdown(false);
                                             }}
                                             >
-                                            <i className="fas fa-user"></i> Meu perfil
+                                            <i className="fas fa-user"></i> My profile
                                         </div>
 
                                         <div
@@ -1347,7 +1402,7 @@ export default function ChatApp() {
                                                 setShowDropdown(false);
                                             }}
                                             >
-                                            <i className="fas fa-edit"></i> Editar Perfil
+                                            <i className="fas fa-edit"></i> Edit Profile
                                         </div>
 
                                         <div
@@ -1357,7 +1412,7 @@ export default function ChatApp() {
                                                 setShowDropdown(false);
                                             }}
                                             >
-                                            <i className="fas fa-info-circle"></i> Sobre
+                                            <i className="fas fa-info-circle"></i> About
                                         </div>
 
                                         {isMobile() && (
@@ -1381,14 +1436,14 @@ export default function ChatApp() {
                                             className="dropdown-item"
                                             onClick={() => openModerationModal('ban')}
                                             >
-                                            <i className="fas fa-ban"></i> Banir Usuário
+                                            <i className="fas fa-ban"></i> Ban User
                                             </div>
 
                                             <div
                                             className="dropdown-item"
                                             onClick={() => openModerationModal('unban')}
                                             >
-                                            <i className="fas fa-check"></i> Desbanir Usuário
+                                            <i className="fas fa-check"></i> Unban User
                                             </div>
                                         </>
                                         )}
@@ -1399,14 +1454,14 @@ export default function ChatApp() {
                                             className="dropdown-item"
                                             onClick={() => openModerationModal('addModerator')}
                                             >
-                                            <i className="fas fa-shield-alt"></i> Adicionar Moderador
+                                            <i className="fas fa-shield-alt"></i> Add Moderator
                                             </div>
 
                                             <div
                                             className="dropdown-item"
                                             onClick={() => openModerationModal('removeModerator')}
                                             >
-                                            <i className="fas fa-shield-alt"></i> Remover Moderador
+                                            <i className="fas fa-shield-alt"></i> Remove Moderator
                                             </div>
                                         </>
                                         )}
@@ -1421,7 +1476,7 @@ export default function ChatApp() {
                                                 setShowDropdown(false);
                                             }}
                                         >
-                                            <i className="fas fa-sign-out-alt"></i> Desconectar
+                                            <i className="fas fa-sign-out-alt"></i> Disconnect
                                             </div>
 
                                     </div>
@@ -1434,7 +1489,7 @@ export default function ChatApp() {
                                 onClick={() => setShowAboutModal(true)}
                                 className="btn btn-secondary btn-sm sobrebtn"
                             >
-                                <i className="fas fa-info-circle"></i> Sobre
+                                <i className="fas fa-info-circle"></i> About
                             </button>
 
                             <appkit-button />
@@ -1457,7 +1512,7 @@ export default function ChatApp() {
                                 }}
                             ></div>
                             <p className="text-lg text-gray-300 animate-pulse">
-                                Carregando mensagens...
+                                Loading messages...
                             </p>
                         </div>
                     </div>
@@ -1469,10 +1524,10 @@ export default function ChatApp() {
                                     {isLoadingMore ? (
                                         <>
                                             <div className="loading-spinner" style={{ width: '16px', height: '16px' }}></div>
-                                            <span>Carregando...</span>
+                                            <span>Loading...</span>
                                         </>
                                     ) : (
-                                        <span><i className="fas fa-arrow-up mr-2"></i>Carregar mais</span>
+                                        <span><i className="fas fa-arrow-up mr-2"></i>Load more</span>
                                     )}
                                 </button>
                             </div>
@@ -1551,23 +1606,23 @@ export default function ChatApp() {
                                                             const replyMessage = messages.find(m => m.id === message.respondeA);
                                                             if (replyMessage && !replyMessage.excluida) {
                                                                 return (
-                                                                    <div className="reply-preview" onClick={() => handleScrollToReply(message.respondeA)} title="Clique para ver a mensagem original">
+                                                                    <div className="reply-preview" onClick={() => handleScrollToReply(message.respondeA)} title="Click to view the original message">
                                                                         <i className="fas fa-reply mr-1"></i>
-                                                                        Respondendo a {replyMessage.usuario}: {(replyMessage.imageHash ? 'IMG: ' : '') + (replyMessage.conteudo ? `${replyMessage.conteudo.substring(0, 50)}...` : '')}
+                                                                        Replying to {replyMessage.usuario}: {(replyMessage.imageHash ? 'IMG: ' : '') + (replyMessage.conteudo ? `${replyMessage.conteudo.substring(0, 50)}...` : '')}
                                                                     </div>
                                                                 );
                                                             } else if (replyMessage && replyMessage.excluida) {
                                                                 return (
                                                                     <div className="reply-preview-deleted">
                                                                         <i className="fas fa-ban mr-2 text-gray-500"></i>
-                                                                        Respondendo a uma mensagem que foi excluída.
+                                                                        Replying to a message that was deleted.
                                                                     </div>
                                                                 );
                                                             } else {
                                                                 return (
-                                                                    <div className="reply-preview-deleted" title="a mensagem é antiga, vá para o topo e clique em 'carregar mais'">
+                                                                    <div className="reply-preview-deleted" title="the message is old, go to the top and click on 'load more'">
                                                                         <i className="fas fa-question-circle mr-2 text-gray-500"></i>
-                                                                        Respondendo a uma mensagem que não está carregada.
+                                                                        Replying to a message that is not loaded.
                                                                     </div>
                                                                 );
                                                             }
@@ -1580,7 +1635,7 @@ export default function ChatApp() {
                                                         {message.imageHash && (
                                                             <img
                                                                 src={message.imageHash.startsWith('http') ? message.imageHash : getIPFSUrl(message.imageHash)}
-                                                                alt="Anexo"
+                                                                alt="Attachment"
                                                                 className="image-preview mt-2 cursor-pointer"
                                                                 onClick={() => openLightbox(message.id)}
                                                             />
@@ -1609,16 +1664,16 @@ export default function ChatApp() {
                                                             {isConnected && (
                                                                 <>
                                                                     <button onClick={() => handleReply(message)} className="text-gray-400 hover:text-white">
-                                                                        <i className="fas fa-reply" title="Responder"></i>
+                                                                        <i className="fas fa-reply" title="Reply"></i>
                                                                     </button>
                                                                     {group.isOwn && (
                                                                         <button onClick={() => handleEdit(message)} className="text-gray-400 hover:text-white">
-                                                                            <i className="fas fa-edit" title="Editar"></i>
+                                                                            <i className="fas fa-edit" title="Edit"></i>
                                                                         </button>
                                                                     )}
                                                                     {(group.isOwn || isOwner || isModerator) && (
                                                                         <button onClick={() => deleteMessage(message.id)} className="text-gray-400 hover:text-red-400">
-                                                                            <i className="fas fa-trash" title={group.isOwn ? 'Excluir' : 'Excluir via moderador'}></i>
+                                                                            <i className="fas fa-trash" title={group.isOwn ? 'Delete' : 'Delete via moderator'}></i>
                                                                         </button>
                                                                     )}
                                                                 </>
@@ -1634,7 +1689,7 @@ export default function ChatApp() {
                                                     {group.usuario}
                                                 </span>
                                                 {group.senderProfile?.role === 2 && <span title="0xGus" className="role-tag dev">Dev</span>}
-                                                {group.senderProfile?.role === 1 && <span title="Moderador MonChat" className="role-tag mod">Mod</span>}
+                                                {group.senderProfile?.role === 1 && <span title="MonChat moderator" className="role-tag mod">Mod</span>}
                                             </div>
                                         )}
                                     </div>
@@ -1662,10 +1717,10 @@ export default function ChatApp() {
                 {isWrongNetwork && isConnected ? (
                     <div className="text-center p-4 bg-red-900/50 border-t-2 border-red-500 rounded-t-lg animate-pulse">
                         <h3 className="font-bold text-lg text-red-300">
-                            <i className="fas fa-exclamation-triangle mr-2"></i>REDE INCORRETA
+                            <i className="fas fa-exclamation-triangle mr-2"></i>INCORRECT NETWORK
                         </h3>
                         <p className="text-red-200 mt-1">
-                            Por favor, mude para **MONAD TESTNET** para continuar. NÃO TENTE INTERAÇÕES ATÉ QUE A REDE SEJA ALTERADA.
+                            Please switch to <strong>MONAD TESTNET</strong> to continue. DO NOT ATTEMPT INTERACTIONS UNTIL THE NETWORK IS CHANGED.
                         </p>
                     </div>
                 ) : isConnected ? (
@@ -1673,7 +1728,7 @@ export default function ChatApp() {
                         {replyingTo && (
                             <div className="reply-indicator">
                                 <i className="fas fa-reply mr-2"></i>
-                                Respondendo a {replyingTo.usuario}: {replyingTo.conteudo.substring(0, 50)}...
+                                Replying to {replyingTo.usuario}: {replyingTo.conteudo.substring(0, 50)}...
                                 <button onClick={() => setReplyingTo(null)} className="ml-2 text-red-400 hover:text-red-300">
                                     <i className="fas fa-times"></i>
                                 </button>
@@ -1683,7 +1738,7 @@ export default function ChatApp() {
                         {editingMessage && (
                             <div className="reply-indicator">
                                 <i className="fas fa-edit mr-2"></i>
-                                Editando mensagem
+                                Editing message
                                 <button
                                     onClick={() => {
                                         setEditingMessage(null);
@@ -1701,7 +1756,7 @@ export default function ChatApp() {
                                 <div className="relative">
                                     <img
                                         src={URL.createObjectURL(selectedImage)}
-                                        alt="Pré-visualização"
+                                        alt="Preview"
                                         className="max-h-24 rounded-md border border-gray-600"
                                     />
                                     <button
@@ -1717,7 +1772,7 @@ export default function ChatApp() {
                                 <div className="relative">
                                     <img
                                         src={selectedGifUrl}
-                                        alt="Pré-visualização de GIF"
+                                        alt="Gif preview"
                                         className="max-h-24 rounded-md border border-gray-600"
                                     />
                                     <button
@@ -1732,7 +1787,7 @@ export default function ChatApp() {
 
                         {uploading && (
                             <div className="upload-progress">
-                                <p className="text-sm mb-2">Enviando imagem...</p>
+                                <p className="text-sm mb-2">Uploading image...</p>
                                 <div className="progress-bar">
                                     <div className="progress-fill" style={{ width: `${uploadProgress}%` }}></div>
                                 </div>
@@ -1813,7 +1868,7 @@ export default function ChatApp() {
                                         }}
 
                                         onKeyDown={handleKeyPress}
-                                        placeholder={editingMessage ? "Editar mensagem..." : "Digite sua mensagem..."}
+                                        placeholder={editingMessage ? "Edit message..." : "Type your message..."}
                                         className="input-field resize-none"
                                         rows="2"
                                         maxLength={280}
@@ -1853,10 +1908,10 @@ export default function ChatApp() {
                             <div className="text-center">
                                 <p className="text-gray-300 mb-4">
                                     <i className="fas fa-user-plus mr-2"></i>
-                                    Você precisa criar um perfil para enviar mensagens
+                                    You need to create a profile to send messages
                                 </p>
                                 <button onClick={() => setShowEditProfileModal(true)} className="btn btn-primary">
-                                    <i className="fas fa-user-plus"></i> Criar Perfil
+                                    <i className="fas fa-user-plus"></i> Create Profile
                                 </button>
                             </div>
                         )}
@@ -1865,7 +1920,7 @@ export default function ChatApp() {
                     <div className="text-center">
                         <p className="text-gray-300 mb-4">
                             <i className="fas fa-eye mr-2"></i>
-                            Você está em modo somente leitura.
+                            You are in read-only mode.
                         </p>
                         <appkit-button class="inline-block" />
                         
@@ -1915,7 +1970,6 @@ export default function ChatApp() {
                 onBanUser={banUser}
                 onUnbanUser={unbanUser}
                 onAddModerator={addModerator}
-                onChallenge={handleChallenge}
             />
 
             <EditProfileModal
@@ -1962,26 +2016,6 @@ export default function ChatApp() {
                 onClose={() => setShowConsoleModal(false)}
                 logs={consoleLogs}
             />
-
-            <GameSelectionModal
-                isOpen={showGameSelectionModal}
-                onClose={() => setShowGameSelectionModal(false)}
-                onChallenge={initiateGameChallenge}
-                opponentUsername={selectedUserProfile?.username}
-            />
-
-            {showGameModal && activeGame && (
-                <GameModal
-                    isOpen={showGameModal}
-                    onClose={handleEndGame}
-                    gameType={gameType}
-                    opponentAddress={gameOpponent.address}
-                    opponentUsername={gameOpponent.username}
-                    currentUserAddress={address}
-                    currentUsername={userProfile?.username}
-                    gameSessionId={gameSessionId}
-                />
-            )}
         </div>
     );
 }
