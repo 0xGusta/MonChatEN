@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { usePresence } from './hooks/usePresence';
 import { CONTRACT_ADDRESS, ABI, MONAD_TESTNET, EMOJIS, userProfilesCache } from './utils/constants';
 import { uploadToIPFS, getIPFSUrl } from './utils/ipfs';
-import { truncateAddress, linkifyText, getFriendlyErrorMessage, showLinkConfirmation } from './utils/helpers';
+import { truncateAddress, linkifyText, getFriendlyErrorMessage, showLinkConfirmation, isMobile } from './utils/helpers';
 import { useStateTogether } from 'react-together';
 import TypingIndicator from './components/TypingIndicator';
 import Popup from './components/Popup';
@@ -15,6 +15,7 @@ import ModerationModal from './components/ModerationModal';
 import GifPicker from './components/GifPicker';
 import OnlineCounter from './components/OnlineCounter';
 import LinkConfirmationModal from './components/LinkConfirmationModal';
+import ConsoleModal from './components/ConsoleModal'; // Import the new component
 import { useAccount, useDisconnect, useBalance, useWalletClient } from 'wagmi';
 import { BrowserProvider } from 'ethers';
 import { monadTestnet } from 'viem/chains';
@@ -96,8 +97,61 @@ export default function ChatApp() {
     const dropdownRef = useRef(null);
     const lightboxRef = useRef(null);
     const { onlineUsers, updateMyPresence, onlineCount } = usePresence(address, userProfile?.username);
+    const [showConsoleModal, setShowConsoleModal] = useState(false);
+    const [consoleLogs, setConsoleLogs] = useState([]);
 
     const MESSAGES_PER_PAGE = 25;
+
+    useEffect(() => {
+        const originalLog = console.log;
+        const originalError = console.error;
+        const originalWarn = console.warn;
+
+        const formatMessage = (args) => {
+            return args.map(arg => {
+                if (typeof arg === 'object' && arg !== null) {
+                    try {
+                        return JSON.stringify(arg, null, 2);
+                    } catch (e) {
+                        return 'Unserializable object';
+                    }
+                }
+                return arg;
+            }).join(' ');
+        };
+
+        const addToLogs = (type, message) => {
+            setConsoleLogs(prevLogs => [
+                ...prevLogs,
+                {
+                    type,
+                    message,
+                    timestamp: new Date().toLocaleTimeString()
+                }
+            ]);
+        };
+
+        console.log = (...args) => {
+            originalLog.apply(console, args);
+            addToLogs('log', formatMessage(args));
+        };
+
+        console.error = (...args) => {
+            originalError.apply(console, args);
+            addToLogs('error', formatMessage(args));
+        };
+
+        console.warn = (...args) => {
+            originalWarn.apply(console, args);
+            addToLogs('warn', formatMessage(args));
+        };
+
+        return () => {
+            console.log = originalLog;
+            console.error = originalError;
+            console.warn = originalWarn;
+        };
+    }, []);
 
     useEffect(() => {
         const setupApp = async () => {
@@ -1279,6 +1333,18 @@ useEffect(() => {
                                             <i className="fas fa-info-circle"></i> About
                                         </div>
 
+                                        {isMobile() && (
+                                            <div
+                                                className="dropdown-item"
+                                                onClick={() => {
+                                                    setShowConsoleModal(true);
+                                                    setShowDropdown(false);
+                                                }}
+                                            >
+                                                <i className="fas fa-terminal"></i> Console
+                                            </div>
+                                        )}
+
 
                                         {(isOwner || isModerator) && (
                                         <>
@@ -1863,7 +1929,11 @@ useEffect(() => {
                 action={moderationAction}
                 onConfirm={handleModerationAction}
             />
-
+             <ConsoleModal
+                isOpen={showConsoleModal}
+                onClose={() => setShowConsoleModal(false)}
+                logs={consoleLogs}
+            />
         </div>
     );
 }
