@@ -243,7 +243,7 @@ export default function ChatApp() {
         }
     
         let readOnlyPollingContract = null;
-        const publicRpcUrls = MONAD_TESTNET.rpcUrls.default.http;
+        const publicRpcUrls = MONAD_TESTNET.rpcUrls; 
     
         const setupPollingProvider = () => {
             for (const url of publicRpcUrls) {
