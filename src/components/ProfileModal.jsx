@@ -27,11 +27,6 @@ export default function ProfileModal({ isOpen, onClose, userAddress, userProfile
                             {isOwnProfile && (<button onClick={onEditProfile} className="btn btn-secondary flex-1"><i className="fas fa-edit"></i>Edit Profile</button>)}
                             {isConnected && !isOwnProfile && (<button onClick={() => onSendMON(userAddress)} className="btn btn-primary flex-1"><i className="fas fa-coins"></i> Send MON</button>)}
                         </div>
-                        {isConnected && !isOwnProfile && (
-                            <button onClick={() => onChallenge(userAddress, userProfile?.username)} className="btn btn-primary flex-1" disabled={!isOnline}>
-                                <i className="fas fa-gamepad"></i> Challenge {isOnline ? '' : '(Offline)'}
-                            </button>
-                        )}
                         {(isOwner || isModerator) && !isOwnProfile && (
                             <div className="flex flex-row gap-2 justify-center">
                                 <button onClick={() => onBanUser(userProfile?.username)} className="btn btn-danger flex-1"><i className="fas fa-ban"></i> Ban</button>
