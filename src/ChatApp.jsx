@@ -103,10 +103,15 @@ export default function ChatApp() {
 
     useEffect(() => {
         const wsProvider = new WebSocketProvider(WEBSOCKET_URL);
+
+        wsProvider.on('open', () => console.log("WebSocket connection established."));
+        wsProvider.on('error', (err) => console.error("WebSocket Error:", err));
+        
         const eventOnlyContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, wsProvider);
         setEventContract(eventOnlyContract);
 
         return () => {
+            console.log("Closing WebSocket connection.");
             wsProvider.destroy();
         }
     }, []);
@@ -499,6 +504,7 @@ export default function ChatApp() {
     useEffect(() => {
         if (eventContract) {
             const onNewMessage = (id, remetente, usuario, conteudo, imageHash, timestamp, respondeA) => {
+                console.log("Event: New Message", {id, remetente});
                 const newMessage = {
                     id: Number(id),
                     remetente,
@@ -523,6 +529,7 @@ export default function ChatApp() {
             };
 
             const onEditMessage = (id, novoConteudo) => {
+                console.log("Event: Edit Message", {id});
                 setMessages(prevMessages =>
                     prevMessages.map(msg =>
                         msg.id === Number(id) ? { ...msg, conteudo: novoConteudo } : msg
@@ -531,6 +538,7 @@ export default function ChatApp() {
             };
 
             const onDeleteMessage = (id) => {
+                console.log("Event: Delete Message", {id});
                 setMessages(prevMessages =>
                     prevMessages.map(msg =>
                         msg.id === Number(id) ? { ...msg, excluida: true } : msg
@@ -539,26 +547,39 @@ export default function ChatApp() {
             };
 
             const onUserBanned = (address, username) => {
-                console.log(`User ${username} (${address}) was banned.`);
+                console.log(`Event: User Banned: ${username} (${address})`);
                 if(contract) loadMessages(contract);
             };
             
             const onMonSent = (from, to, value, message) => {
+                console.log("Event: MON Sent");
                 if(contract) loadLatestMessages(contract);
             }
 
-            eventContract.on('MensagemEnviada', onNewMessage);
-            eventContract.on('MensagemEditada', onEditMessage);
-            eventContract.on('MensagemExcluida', onDeleteMessage);
-            eventContract.on('UsuarioBanido', onUserBanned);
-            eventContract.on('MonEnviado', onMonSent);
+            const listener = (event) => {
+                switch(event.fragment.name) {
+                    case 'MensagemEnviada':
+                        onNewMessage(...event.args);
+                        break;
+                    case 'MensagemEditada':
+                        onEditMessage(...event.args);
+                        break;
+                    case 'MensagemExcluida':
+                        onDeleteMessage(...event.args);
+                        break;
+                    case 'UsuarioBanido':
+                        onUserBanned(...event.args);
+                        break;
+                    case 'MonEnviado':
+                        onMonSent(...event.args);
+                        break;
+                }
+            };
+
+            eventContract.on('*', listener);
 
             return () => {
-                eventContract.off('MensagemEnviada', onNewMessage);
-                eventContract.off('MensagemEditada', onEditMessage);
-                eventContract.off('MensagemExcluida', onDeleteMessage);
-                eventContract.off('UsuarioBanido', onUserBanned);
-                eventContract.off('MonEnviado', onMonSent);
+                eventContract.off('*', listener);
             };
         }
     }, [eventContract, contract]);
