@@ -505,15 +505,15 @@ export default function ChatApp() {
         }
     }, [contract, loadLatestMessages, scrollToBottom]);
 
-    const { notifyNewMessage } = useMessageSync(stableHandleNewMessageNotification, address);
+    const stableHandleNewMessageNotification = useCallback(() => {
+        handleNewMessageNotificationRef.current?.();
+    }, []);
 
     useEffect(() => {
         handleNewMessageNotificationRef.current = handleNewMessageNotification;
     });
 
-    const stableHandleNewMessageNotification = useCallback(() => {
-        handleNewMessageNotificationRef.current?.();
-    }, []);
+    const { notifyNewMessage } = useMessageSync(stableHandleNewMessageNotification, address);
         
     const handleSelectGif = (gifUrl) => {
         setSelectedGifUrl(gifUrl); 
