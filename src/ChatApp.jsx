@@ -243,9 +243,13 @@ export default function ChatApp() {
         }
     
         let readOnlyPollingContract = null;
-        const publicRpcUrls = MONAD_TESTNET.rpcUrls; 
+        const publicRpcUrls = MONAD_TESTNET.rpcUrls;
     
         const setupPollingProvider = () => {
+            if (!publicRpcUrls || publicRpcUrls.length === 0) {
+                console.error("[Polling Setup] RPC URL list is empty. Polling cannot function.");
+                return;
+            }
             for (const url of publicRpcUrls) {
                 try {
                     console.log(`[Polling Setup] Attempting public RPC for polling: ${url}`);
@@ -267,24 +271,18 @@ export default function ChatApp() {
                 console.error("[Polling] No read-only contract is available. Polling cannot start.");
                 return;
             }
-    
             console.log("[Polling] Starting message polling with a dedicated read-only provider.");
-    
             if (pollingIntervalRef.current) {
                 clearInterval(pollingIntervalRef.current);
             }
-    
             pollingIntervalRef.current = setInterval(async () => {
                 try {
                     console.log("[Polling] Checking for new messages using public provider...");
-    
                     const blockNumber = await readOnlyPollingContract.runner.provider.getBlockNumber();
                     console.log(`[Polling] Current block (via public RPC): ${blockNumber}`);
-    
                     const totalMessagesBigInt = await readOnlyPollingContract.contadorMensagens();
                     const total = Number(totalMessagesBigInt);
                     const previous = lastMessageCountRef.current;
-    
                     console.log(`[Polling] Current total on contract (via public RPC): ${total}`);
                     console.log(`[Polling] Previous local total: ${previous}`);
     
@@ -292,13 +290,12 @@ export default function ChatApp() {
                         const newMessagesCount = total - previous;
                         console.log(`[Polling] New messages detected: ${newMessagesCount}`);
                         
-                        await loadLatestMessages(contract); 
+                        await loadLatestMessages(total); 
     
                         const container = messagesContainerRef.current;
                         const isAtBottom = container
                             ? (container.scrollHeight - container.scrollTop - container.clientHeight) < container.clientHeight
                             : true;
-    
                         if (isAtBottom) {
                             console.log("[Polling] User is at bottom — auto-scrolling.");
                             setTimeout(() => scrollToBottom(), 300);
@@ -306,10 +303,8 @@ export default function ChatApp() {
                             console.log("[Polling] User is not at bottom — incrementing unseen messages.");
                             setUnseenMessages(prev => prev + newMessagesCount);
                         }
-                        
                         console.log(`[Polling] UPDATING local count from ${previous} to ${total}.`);
                         lastMessageCountRef.current = total;
-    
                     } else {
                         console.log("[Polling] No new messages.");
                     }
@@ -318,7 +313,7 @@ export default function ChatApp() {
                     console.log("[Polling] Attempting to re-setup the polling provider...");
                     setupPollingProvider();
                 }
-            }, 7000);
+            }, 5000);
         };
     
         startPolling();
@@ -642,27 +637,39 @@ export default function ChatApp() {
         }
     };
     
-    const loadLatestMessages = async (contractInstance) => {
+    const loadLatestMessages = async (totalMessagesOnChain) => {
         if (isFetchingNewerMessages.current) return;
+        console.log(`[Loader] Starting to load latest messages. Expecting total of ${totalMessagesOnChain}.`);
+    
         try {
             isFetchingNewerMessages.current = true;
-            const totalMessages = Number(await contractInstance.contadorMensagens());
-            const lastIdInState = messages.length > 0 ? messages[messages.length - 1].id : 0;
+            const lastIdInState = lastMessageCountRef.current;
     
-            if (totalMessages > lastIdInState) {
+            if (totalMessagesOnChain > lastIdInState) {
                 const newMessages = [];
-                for (let i = lastIdInState + 1; i <= totalMessages; i++) {
-                    const msg = await contractInstance.obterMensagem(i);
+                
+                const publicProvider = new ethers.JsonRpcProvider(MONAD_TESTNET.rpcUrls[0]);
+                const readerContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, publicProvider);
+                console.log("[Loader] Created a temporary public provider to fetch message details.");
+    
+                for (let i = lastIdInState + 1; i <= totalMessagesOnChain; i++) {
+                    console.log(`[Loader] Fetching message ID: ${i}`);
+                    const msg = await readerContract.obterMensagem(i);
                     newMessages.push({ ...msg, id: i });
                 }
+    
                 if (newMessages.length > 0) {
-                    await processAndSetMessages(newMessages, contractInstance, false);
+                    console.log(`[Loader] Fetched ${newMessages.length} new messages. Processing them now...`);
+                    await processAndSetMessages(newMessages, readerContract);
                 }
+            } else {
+                 console.log(`[Loader] No new messages to load. Chain total (${totalMessagesOnChain}) is not greater than local total (${lastIdInState}).`);
             }
         } catch (error) {
-            console.error('Error loading latest messages:', error);
+            console.error('[Loader] Error loading latest messages:', error);
         } finally {
             isFetchingNewerMessages.current = false;
+            console.log("[Loader] Finished loading latest messages.");
         }
     };
      
