@@ -48,6 +48,7 @@ export function usePresence(userId, userName) {
         const localTime = Date.now();
         const offset = serverTime - localTime;
         timeOffset.current = offset;
+        console.log('offset calculado:', offset);
         setTimeOffset(offset);
       } catch (error) {
 
