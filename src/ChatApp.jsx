@@ -98,28 +98,6 @@ export default function ChatApp() {
     const lightboxRef = useRef(null);
     const { onlineUsers, updateMyPresence, onlineCount } = usePresence(address, userProfile?.username);
 
-    const handleNewMessageNotification = useCallback(async () => {
-        if (!contract) return;
-
-        const container = messagesContainerRef.current;
-        const isAtBottom = container ? (container.scrollHeight - container.scrollTop - container.clientHeight) < container.clientHeight : true;
-
-        await loadLatestMessages(contract);
-
-        if (isAtBottom) {
-            setTimeout(() => scrollToBottom(), 300);
-        } else {
-            const totalMessages = await contract.contadorMensagens();
-            const newMessagesCount = Number(totalMessages) - lastMessageCountRef.current;
-            if (newMessagesCount > 0) {
-                setUnseenMessages(prev => prev + newMessagesCount);
-            }
-        }
-    }, [contract, loadLatestMessages, scrollToBottom]);
-
-    const { notifyNewMessage } = useMessageSync(handleNewMessageNotification, address);
-
-
     const MESSAGES_PER_PAGE = 25;
 
     useEffect(() => {
@@ -506,6 +484,27 @@ export default function ChatApp() {
             isFetchingNewerMessages.current = false;
         }
     };
+
+    const handleNewMessageNotification = useCallback(async () => {
+        if (!contract) return;
+
+        const container = messagesContainerRef.current;
+        const isAtBottom = container ? (container.scrollHeight - container.scrollTop - container.clientHeight) < container.clientHeight : true;
+
+        await loadLatestMessages(contract);
+
+        if (isAtBottom) {
+            setTimeout(() => scrollToBottom(), 300);
+        } else {
+            const totalMessages = await contract.contadorMensagens();
+            const newMessagesCount = Number(totalMessages) - lastMessageCountRef.current;
+            if (newMessagesCount > 0) {
+                setUnseenMessages(prev => prev + newMessagesCount);
+            }
+        }
+    }, [contract, loadLatestMessages, scrollToBottom]);
+
+    const { notifyNewMessage } = useMessageSync(handleNewMessageNotification, address);
     
     const handleSelectGif = (gifUrl) => {
         setSelectedGifUrl(gifUrl); 
