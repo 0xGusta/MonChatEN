@@ -101,21 +101,25 @@ export default function ChatApp() {
 
     useEffect(() => {
         const setupApp = async () => {
-                if (isConnected && walletClient && address) {
-                    const isOnCorrectNetwork = chain?.id === monadTestnet.id;
-                    setIsWrongNetwork(!isOnCorrectNetwork);
-                        if (!isOnCorrectNetwork) return;
 
-                            const signer = await walletClientToSigner(walletClient);
-                            const newContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
-                            setContract(newContract);
-
-                            const [profileData, ownerAddress, isModeratorResult] = await Promise.all([
-                                newContract.obterPerfilUsuario(address),
-                                newContract.dono(),
-                                newContract.moderadores(address)
-                            ]);
-
+            if (isConnected && walletClient && address) {
+                const isOnCorrectNetwork = chain?.id === monadTestnet.id;
+                setIsWrongNetwork(!isOnCorrectNetwork);
+    
+                if (!isOnCorrectNetwork) {
+                    setContract(null);
+                    return;
+                }
+                const signer = await walletClientToSigner(walletClient);
+                const newContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+                setContract(newContract);
+    
+                const [profileData, ownerAddress, isModeratorResult] = await Promise.all([
+                    newContract.obterPerfilUsuario(address),
+                    newContract.dono(),
+                    newContract.moderadores(address)
+                ]);
+    
                 if (profileData.exists) {
                     const userRole = await newContract.obterRoleUsuario(address);
                     const profile = { username: profileData.username, profilePicHash: profileData.profilePicHash, exists: true, role: Number(userRole) };
@@ -133,22 +137,24 @@ export default function ChatApp() {
                 if (messages.length === 0) {
                     await loadMessages(newContract);
                 }
-
+    
             } else {
+
                 setIsWrongNetwork(false);
                 setUserProfile(null);
                 const publicProvider = new ethers.JsonRpcProvider(monadTestnet.rpcUrls.default.http[0]);
                 const readOnlyContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, publicProvider);
                 setContract(readOnlyContract);
-
+    
                 if (messages.length === 0) {
                     loadMessages(readOnlyContract);
                 }
             }
         };
-
+    
         setupApp();
-    }, [isConnected, address, walletClient]);
+
+    }, [isConnected, address, walletClient, chain]);
 
     useEffect(() => {
         if (balanceData) {
@@ -1038,14 +1044,23 @@ export default function ChatApp() {
     }, [isInitialLoad]);
 
     useEffect(() => {
-        if (!isConnected || !contract || isAppLoading) { 
-            if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+
+        if (!isConnected || !contract || isAppLoading || !walletClient) { 
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+            }
             return;
         }
+    
         const startPolling = () => {
-            if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+            }
+    
             pollingIntervalRef.current = setInterval(async () => {
                 try {
+
                     const totalMessages = await contract.contadorMensagens();
                     if (Number(totalMessages) > lastMessageCountRef.current) {
                         const newMessagesCount = Number(totalMessages) - lastMessageCountRef.current;
@@ -1067,11 +1082,15 @@ export default function ChatApp() {
         };
     
         startPolling();
-    
+
         return () => {
-            if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+            }
         };
-    }, [isConnected, contract, isAppLoading]);
+    
+
+    }, [isConnected, contract, isAppLoading, walletClient]);
     
     useLayoutEffect(() => {
         const container = messagesContainerRef.current;
