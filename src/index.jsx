@@ -16,7 +16,7 @@ const projectId = import.meta.env.VITE_PROJECT_ID;
 const metadata = {
   name: 'MonChat',
   description: 'Real time chat application on Monad',
-  url: 'https://mcmsq.vercel.app/',
+  url: 'https://monchaten.vercel.app/',
   icons: ['https://ipfs.io/ipfs/bafkreievdtfwyy5ixtyjt4aemzyevjeeza5yfwbifnnzbxueiommukwwfa']
 };
 
