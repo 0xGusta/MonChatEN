@@ -16,7 +16,7 @@ import GifPicker from './components/GifPicker';
 import OnlineCounter from './components/OnlineCounter';
 import LinkConfirmationModal from './components/LinkConfirmationModal';
 import { useAccount, useDisconnect, useBalance, useWalletClient } from 'wagmi';
-import { BrowserProvider } from 'ethers';
+import { BrowserProvider, WebSocketProvider } from 'ethers';
 import { monadTestnet } from 'viem/chains';
 import PhotoSwipe from 'photoswipe';
 import 'photoswipe/dist/photoswipe.css';
@@ -33,6 +33,7 @@ async function walletClientToSigner(walletClient) {
     return signer;
 }
 
+const WEBSOCKET_URL = "wss://monad-testnet.drpc.org";
 
 export default function ChatApp() {
     const { address, isConnected, chain } = useAccount();
@@ -40,6 +41,7 @@ export default function ChatApp() {
     const { disconnect } = useDisconnect();
     const { data: balanceData, refetch: refetchBalance } = useBalance({ address });
     const [contract, setContract] = useState(null);
+    const [eventContract, setEventContract] = useState(null);
     const [provider, setProvider] = useState(null);
     const [signer, setSigner] = useState(null);
     const [messages, setMessages] = useState([]);
@@ -98,6 +100,16 @@ export default function ChatApp() {
     const { onlineUsers, updateMyPresence, onlineCount } = usePresence(address, userProfile?.username);
 
     const MESSAGES_PER_PAGE = 25;
+
+    useEffect(() => {
+        const wsProvider = new WebSocketProvider(WEBSOCKET_URL);
+        const eventOnlyContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, wsProvider);
+        setEventContract(eventOnlyContract);
+
+        return () => {
+            wsProvider.destroy();
+        }
+    }, []);
 
     useEffect(() => {
         const setupApp = async () => {
@@ -485,7 +497,7 @@ export default function ChatApp() {
     };
     
     useEffect(() => {
-        if (contract) {
+        if (eventContract) {
             const onNewMessage = (id, remetente, usuario, conteudo, imageHash, timestamp, respondeA) => {
                 const newMessage = {
                     id: Number(id),
@@ -528,28 +540,28 @@ export default function ChatApp() {
 
             const onUserBanned = (address, username) => {
                 console.log(`User ${username} (${address}) was banned.`);
-                loadMessages(contract);
+                if(contract) loadMessages(contract);
             };
             
             const onMonSent = (from, to, value, message) => {
-                loadLatestMessages(contract);
+                if(contract) loadLatestMessages(contract);
             }
 
-            contract.on('MensagemEnviada', onNewMessage);
-            contract.on('MensagemEditada', onEditMessage);
-            contract.on('MensagemExcluida', onDeleteMessage);
-            contract.on('UsuarioBanido', onUserBanned);
-            contract.on('MonEnviado', onMonSent);
+            eventContract.on('MensagemEnviada', onNewMessage);
+            eventContract.on('MensagemEditada', onEditMessage);
+            eventContract.on('MensagemExcluida', onDeleteMessage);
+            eventContract.on('UsuarioBanido', onUserBanned);
+            eventContract.on('MonEnviado', onMonSent);
 
             return () => {
-                contract.off('MensagemEnviada', onNewMessage);
-                contract.off('MensagemEditada', onEditMessage);
-                contract.off('MensagemExcluida', onDeleteMessage);
-                contract.off('UsuarioBanido', onUserBanned);
-                contract.off('MonEnviado', onMonSent);
+                eventContract.off('MensagemEnviada', onNewMessage);
+                eventContract.off('MensagemEditada', onEditMessage);
+                eventContract.off('MensagemExcluida', onDeleteMessage);
+                eventContract.off('UsuarioBanido', onUserBanned);
+                eventContract.off('MonEnviado', onMonSent);
             };
         }
-    }, [contract]);
+    }, [eventContract, contract]);
 
         
     const handleSelectGif = (gifUrl) => {
@@ -791,8 +803,7 @@ export default function ChatApp() {
 
             hidePopup();
             showPopup('Message sent!', 'success');
-            setTimeout(() => loadLatestMessages(contract), 500);
-
+            
         } catch (error) {
             hidePopup();
             const friendlyMessage = getFriendlyErrorMessage(error);
@@ -813,7 +824,6 @@ export default function ChatApp() {
             setEditingMessage(null);
             setNewMessage('');
             
-            await loadMessages(contract);
         } catch (error) {
             hidePopup();
             const friendlyMessage = getFriendlyErrorMessage(error);
@@ -829,7 +839,6 @@ export default function ChatApp() {
             hidePopup();
             showPopup('Message deleted!', 'success');
             
-            await loadMessages(contract);
         } catch (error) {
             hidePopup();
             const friendlyMessage = getFriendlyErrorMessage(error);
@@ -895,9 +904,6 @@ export default function ChatApp() {
 
             refetchBalance();
 
-            
-            await loadLatestMessages(contractWithSigner);
-
         } catch (error) {
             hidePopup();
             const friendlyMessage = getFriendlyErrorMessage(error);
@@ -919,7 +925,6 @@ export default function ChatApp() {
             hidePopup();
             showPopup('User banned!', 'success');
             
-            await loadMessages(contract);
         } catch (error) {
             hidePopup();
             const friendlyMessage = getFriendlyErrorMessage(error);
@@ -940,7 +945,6 @@ export default function ChatApp() {
             await tx.wait();
             hidePopup();
             showPopup('User unbanned!', 'success');
-            await loadMessages(contract);
         } catch (error) {
             hidePopup();
             const friendlyMessage = getFriendlyErrorMessage(error);
