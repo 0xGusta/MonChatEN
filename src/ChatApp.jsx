@@ -16,8 +16,6 @@ import GifPicker from './components/GifPicker';
 import OnlineCounter from './components/OnlineCounter';
 import LinkConfirmationModal from './components/LinkConfirmationModal';
 import ConsoleModal from './components/ConsoleModal';
-import GameModal from './components/GameModal'; // New import
-import GameSelectionModal from './components/GameSelectionModal'; // New import
 import { useAccount, useDisconnect, useBalance, useWalletClient } from 'wagmi';
 import { BrowserProvider } from 'ethers';
 import { monadTestnet } from 'viem/chains';
@@ -75,22 +73,14 @@ export default function ChatApp() {
     const [nextPage, setNextPage] = useState(1);
     const [hasMoreMessages, setHasMoreMessages] = useState(true);
     const [isForcedAboutModal, setIsForcedAboutModal] = useState(false);
-    const [availableWallets, setAvailableWallets] = useState([]); // This state is not directly used but was in the original ChatApp
+    const [availableWallets, setAvailableWallets] = useState([]);
     const [isAppLoading, setIsAppLoading] = useState(true);
     const [showGifPicker, setShowGifPicker] = useState(false);
     const [selectedGifUrl, setSelectedGifUrl] = useState(null);
     const [isWrongNetwork, setIsWrongNetwork] = useState(false);
     const [rawProvider, setRawProvider] = useState(null);
-
-    // Game states and functions
-    const [showGameSelectionModal, setShowGameSelectionModal] = useState(false);
-    const [selectedOpponentForChallenge, setSelectedOpponentForChallenge] = useState(null);
-    const [gamePlayers, setGamePlayers] = useState([]);
-    const [gameSessionId, setGameSessionId] = useState(null);
-    const [activeGame, setActiveGame] = useState(null);
     const [challenges, setChallenges] = useStateTogether('challenges', {});
-
-
+    const [activeGame, setActiveGame] = useState(null);
     const messagesContainerRef = useRef(null);
     const messagesEndRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -208,7 +198,7 @@ export default function ChatApp() {
                 setIsWrongNetwork(false);
                 setUserProfile(null);
                 
-                const rpcUrls = MONAD_TESTNET.rpcUrls;
+                const rpcUrls = MONAD_TESTNET.rpcUrls.default.http;
                 let connectedContract = null;
 
                 for (const url of rpcUrls) {
@@ -252,7 +242,7 @@ export default function ChatApp() {
         }
     
         let readOnlyPollingContract = null;
-        const publicRpcUrls = MONAD_TESTNET.rpcUrls.default.http;
+        const publicRpcUrls = MONAD_TESTNET.rpcUrls;
     
         const setupPollingProvider = () => {
             if (!publicRpcUrls || publicRpcUrls.length === 0) {
@@ -283,7 +273,6 @@ export default function ChatApp() {
             console.log("[Polling] Starting message polling with a dedicated read-only provider.");
             if (pollingIntervalRef.current) {
                 clearInterval(pollingIntervalRef.current);
-                pollingIntervalRef.current = null;
             }
             pollingIntervalRef.current = setInterval(async () => {
                 try {
@@ -466,44 +455,31 @@ export default function ChatApp() {
         }
     }, [setSelectedImage, setSelectedGifUrl, showPopup]);
 
-    // New Game Challenge useEffect
     useEffect(() => {
-        // Handle incoming challenges (where current user is the opponent)
-        const pendingChallengeForMe = Object.entries(challenges).find(([, challenge]) =>
-            challenge?.opponent?.address?.toLowerCase() === address?.toLowerCase() &&
-            challenge.status === 'pending'
-        );
-
-        if (pendingChallengeForMe && !activeGame) {
-            const [challengeId, challengeData] = pendingChallengeForMe;
-            const confirmChallenge = window.confirm(
-                `Incoming ${challengeData.game} challenge from ${challengeData.challenger.username}! Do you accept?`
-            );
-            if (confirmChallenge) {
-                acceptChallenge(challengeId, challengeData);
-            } else {
-                rejectChallenge(challengeId, challengeData);
-            }
-        }
-
-        // Handle when my own sent challenge is accepted by the opponent
-        const acceptedChallengeByMe = Object.entries(challenges).find(([, challenge]) =>
+        const myAcceptedChallenge = Object.entries(challenges).find(([, challenge]) =>
             challenge?.challenger?.address?.toLowerCase() === address?.toLowerCase() &&
             challenge.status === 'accepted'
         );
 
-        if (acceptedChallengeByMe && !activeGame) {
-            const [challengeId, challengeData] = acceptedChallengeByMe;
-            setGamePlayers([challengeData.challenger, challengeData.opponent]);
+        if (myAcceptedChallenge && !activeGame) {
+            const [challengeId, challengeData] = myAcceptedChallenge;
+
+            setGamePlayers([
+                { address: challengeData.challenger.address, username: challengeData.challenger.username },
+                { address: challengeData.opponent.address, username: challengeData.opponent.username }
+            ]);
             setGameSessionId(challengeData.gameSessionId);
             setActiveGame(challengeData.game);
-            showPopup(`Your challenge to ${challengeData.opponent.username} for ${challengeData.game} was accepted!`, 'success');
-            setChallenges(prev => ({
-                ...prev,
-                [challengeId]: { ...challengeData, status: 'started' }
-            }));
+
+            setChallenges(prev => {
+                const newChallenges = { ...prev };
+                if (newChallenges[challengeId]) {
+                    newChallenges[challengeId].status = 'started';
+                }
+                return newChallenges;
+            });
         }
-    }, [challenges, address, activeGame, setChallenges, showPopup]);
+    }, [challenges, address, activeGame, setChallenges]);
 
     useLayoutEffect(() => {
         const container = messagesContainerRef.current;
@@ -631,7 +607,7 @@ export default function ChatApp() {
         try {
             let contractToUse = contract;
             if (!contractToUse) {
-                const publicProvider = new ethers.JsonRpcProvider(MONAD_TESTNET.rpcUrls.default.http[0]); // Using default RPC from MONAD_TESTNET
+                const publicProvider = new ethers.JsonRpcProvider(MONAD_TESTNET.rpcUrls[0]);
                 contractToUse = new ethers.Contract(CONTRACT_ADDRESS, ABI, publicProvider);
             }
     
@@ -671,7 +647,7 @@ export default function ChatApp() {
             if (totalMessagesOnChain > lastIdInState) {
                 const newMessages = [];
                 
-                const publicProvider = new ethers.JsonRpcProvider(MONAD_TESTNET.rpcUrls.default.http[0]); // Using default RPC
+                const publicProvider = new ethers.JsonRpcProvider(MONAD_TESTNET.rpcUrls[0]);
                 const readerContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, publicProvider);
                 console.log("[Loader] Created a temporary public provider to fetch message details.");
     
@@ -731,11 +707,7 @@ export default function ChatApp() {
     }, [popup]);
 
     useEffect(() => {
-        // This effect block appears to be for auto-connecting specific wallets,
-        // which might be part of an AppKit or similar wallet connector.
-        // If 'availableWallets' is not being populated or used elsewhere,
-        // this block might be non-functional or intended for future use.
-        // Assuming 'availableWallets' would be populated by a wallet connector library.
+        
         if (availableWallets.length > 0 && !isConnected && !hasAttemptedAutoConnect.current) {
             const lastRdns = localStorage.getItem('lastConnectedWalletRdns');
             if (lastRdns) {
@@ -746,103 +718,98 @@ export default function ChatApp() {
                     console.log(`Attempting automatic reconnection with ${walletToReconnect.info.name}...`);
 
                     hasAttemptedAutoConnect.current = true;
-                    // This initiateConnection might need to be adapted based on the actual
-                    // wallet connection library used (e.g., Wagmi's connect function).
-                    // For now, keeping the original structure from the provided code.
-                    // initiateConnection(walletToReconnect.provider, walletToReconnect.info);
+                    
+                    handleConnect(walletToReconnect.provider, walletToReconnect.info);
                 }
             }
         }
     }, [availableWallets, isConnected]); 
 
-    // This function is commented out in the original context, leaving it as is.
-    // If wallet auto-connection is desired, this function might need to be re-evaluated
-    // in conjunction with the wagmi hooks.
-    // const initiateConnection = async (walletProvider, walletName) => {
-    //     showPopup(`Connecting with ${walletName}...`, 'info', true);
-    //     try {
-            
-    //         const accounts = await walletProvider.request({ method: 'eth_requestAccounts' });
-    //         if (accounts.length === 0) {
-    //             hidePopup();
-    //             showPopup('No account selected', 'error');
-    //             return;
-    //         }
-
-            
-    //         try {
-    //             await walletProvider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: MONAD_TESTNET.chainId }] });
-    //         } catch (switchError) {
-                
-    //             if (switchError.code === 4902) {
-    //                 await walletProvider.request({ method: 'wallet_addEthereumChain', params: [MONAD_TESTNET] });
-    //             } else {
-                    
-    //                 hidePopup();
-    //                 showPopup('Please switch to the Monad Testnet network in your wallet.', 'warning');
-    //                 return;
-    //             }
-    //         }
-
-    //         const provider = new ethers.BrowserProvider(walletProvider);
-    //         const signer = await provider.getSigner();
-    //         const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
-    //         const userAddress = accounts[0];
-
-    //         setIsWrongNetwork(false); 
-    //         setProvider(provider);
-    //         setRawProvider(walletProvider);
-    //         setSigner(signer);
-    //         setContract(contract);
     
-    //         const [profileData, balanceData, ownerAddress, isModeratorResult] = await Promise.all([
-    //             contract.obterPerfilUsuario(userAddress),
-    //             provider.getBalance(userAddress),
-    //             contract.dono(),
-    //             contract.moderadores(userAddress)
-    //         ]);
+    const initiateConnection = async (walletProvider, walletName) => {
+        showPopup(`Connecting with ${walletName}...`, 'info', true);
+        try {
+            
+            const accounts = await walletProvider.request({ method: 'eth_requestAccounts' });
+            if (accounts.length === 0) {
+                hidePopup();
+                showPopup('No account selected', 'error');
+                return;
+            }
 
-    //         const profileExists = profileData.exists;
+            
+            try {
+                await walletProvider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: MONAD_TESTNET.chainId }] });
+            } catch (switchError) {
+                
+                if (switchError.code === 4902) {
+                    await walletProvider.request({ method: 'wallet_addEthereumChain', params: [MONAD_TESTNET] });
+                } else {
+                    
+                    hidePopup();
+                    showPopup('Please switch to the Monad Testnet network in your wallet.', 'warning');
+                    return;
+                }
+            }
 
-    //         if (!profileExists) {
-    //             hidePopup();
-    //             setUserProfile({ exists: false, username: '', profilePicHash: '', role: 0 });
-    //             setIsOwner(false);
-    //             setIsModerator(false);
-    //             setBalance('0'); 
-    //             setIsForcedAboutModal(true);
-    //             setShowAboutModal(true);
-    //         } else {
-    //             const isOwnerResult = ownerAddress.toLowerCase() === userAddress.toLowerCase();
-    //             const finalIsModerator = isOwnerResult || isModeratorResult; 
-    //             const userRole = await contract.obterRoleUsuario(userAddress);
-    //             const userProfile = { username: profileData.username, profilePicHash: profileData.profilePicHash, exists: true, role: Number(userRole) };
-    //             setUserProfile(userProfile);
-    //             userProfilesCache.set(userAddress.toLowerCase(), userProfile);
-    //             setIsOwner(isOwnerResult);
-    //             setIsModerator(finalIsModerator);
-    //             setBalance(ethers.formatEther(balanceData));
-    //             hidePopup();
-    //             showPopup('Wallet connected!', 'success');
-    //         }
+            const provider = new ethers.BrowserProvider(walletProvider);
+            const signer = await provider.getSigner();
+            const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+            const userAddress = accounts[0];
 
-    //         if (messages.length === 0) {
-    //             await loadMessages(contract);
-    //         }
+            setIsWrongNetwork(false); 
+            setProvider(provider);
+            setRawProvider(walletProvider);
+            setSigner(signer);
+            setContract(contract);
+    
+            const [profileData, balanceData, ownerAddress, isModeratorResult] = await Promise.all([
+                contract.obterPerfilUsuario(userAddress),
+                provider.getBalance(userAddress),
+                contract.dono(),
+                contract.moderadores(userAddress)
+            ]);
 
-    //     } catch (error) {
-    //         console.error(`Error connecting with ${walletName}:`, error);
-    //         hidePopup();
-    //         const friendlyMessage = getFriendlyErrorMessage(error);
-    //         showPopup(`Error: ${friendlyMessage}`, 'error');
-    //         disconnectWallet();
-    //     }
-    // };
+            const profileExists = profileData.exists;
+
+            if (!profileExists) {
+                hidePopup();
+                setUserProfile({ exists: false, username: '', profilePicHash: '', role: 0 });
+                setIsOwner(false);
+                setIsModerator(false);
+                setBalance('0'); 
+                setIsForcedAboutModal(true);
+                setShowAboutModal(true);
+            } else {
+                const isOwnerResult = ownerAddress.toLowerCase() === userAddress.toLowerCase();
+                const finalIsModerator = isOwnerResult || isModeratorResult; 
+                const userRole = await contract.obterRoleUsuario(userAddress);
+                const userProfile = { username: profileData.username, profilePicHash: profileData.profilePicHash, exists: true, role: Number(userRole) };
+                setUserProfile(userProfile);
+                userProfilesCache.set(userAddress.toLowerCase(), userProfile);
+                setIsOwner(isOwnerResult);
+                setIsModerator(finalIsModerator);
+                setBalance(ethers.formatEther(balanceData));
+                hidePopup();
+                showPopup('Wallet connected!', 'success');
+            }
+
+            if (messages.length === 0) {
+                await loadMessages(contract);
+            }
+
+        } catch (error) {
+            console.error(`Error connecting with ${walletName}:`, error);
+            hidePopup();
+            const friendlyMessage = getFriendlyErrorMessage(error);
+            showPopup(`Error: ${friendlyMessage}`, 'error');
+            disconnectWallet();
+        }
+    };
 
     const disconnectWallet = () => {
         hidePopup();
-        localStorage.removeItem('lastConnectedWalletRdns'); // Ensure this is cleared
-        disconnect(); // Use wagmi's disconnect
+        localStorage.removeItem('lastConnectedWalletRdns');
         setSigner(null);
         setProvider(null);
         setContract(null);
@@ -857,7 +824,7 @@ export default function ChatApp() {
         setMessages([]);
         setTimeout(async () => {
             try {
-                const publicProvider = new ethers.JsonRpcProvider(MONAD_TESTNET.rpcUrls.default.http[0]);
+                const publicProvider = new ethers.JsonRpcProvider(MONAD_TESTNET.rpcUrls[0]);
                 const readOnlyContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, publicProvider);
                 await loadMessages(readOnlyContract);
             } catch (error) {
@@ -868,45 +835,7 @@ export default function ChatApp() {
         }, 50); 
     };
 
-    // New: Handle challenge initiation from ProfileModal
-    const handleChallenge = (opponentAddress, opponentUsername) => {
-        setSelectedOpponentForChallenge({ address: opponentAddress, username: opponentUsername });
-        setShowGameSelectionModal(true);
-    };
-
-    // New: Handle selected game from GameSelectionModal
-    const onChallengeConfirmed = async (gameType) => {
-        if (!address || !userProfile || !selectedOpponentForChallenge) return;
-
-        showPopup('Sending game challenge...', 'info', true);
-        const newGameSessionId = Date.now().toString();
-
-        const challengeData = {
-            challenger: { address: address, username: userProfile.username },
-            opponent: selectedOpponentForChallenge,
-            game: gameType,
-            gameSessionId: newGameSessionId,
-            status: 'pending'
-        };
-
-        setChallenges(prev => ({
-            ...prev,
-            [newGameSessionId]: challengeData
-        }));
-
-        setShowGameSelectionModal(false);
-        showPopup(`Challenge sent to ${selectedOpponentForChallenge.username} for ${gameType}!`, 'success');
-    };
-
-    // New: Handle game modal close
-    const onGameModalClose = () => {
-        setActiveGame(null);
-        setGameSessionId(null);
-        setGamePlayers([]);
-        // Optionally, update the challenge status to 'completed' or remove it from 'challenges'
-        // For simplicity, we can remove completed/rejected challenges after a delay or on next app load.
-    };
-              
+    
     const handleAgreeAndProceedToProfile = () => {
         setShowAboutModal(false);     
         setIsForcedAboutModal(false);   
@@ -940,15 +869,10 @@ export default function ChatApp() {
                     exists: true,
                     role: Number(userRole)
                 };
+                setUserProfile(profile);
                 userProfilesCache.set(userAddress.toLowerCase(), profile);
-                // Only update current user profile if it's their own
-                if (address && userAddress.toLowerCase() === address.toLowerCase()) {
-                    setUserProfile(profile);
-                }
             } else {
-                if (address && userAddress.toLowerCase() === address.toLowerCase()) {
-                    setUserProfile({ exists: false, username: '', profilePicHash: '', role: 0 });
-                }
+                setUserProfile({ exists: false, username: '', profilePicHash: '', role: 0 });
             }
         } catch (error) {
             console.error("Error loading user profile:", error);
@@ -1262,8 +1186,6 @@ export default function ChatApp() {
             case 'removeModerator':
                 await removeModerator(username);
                 break;
-            default:
-                break;
         }
     };
 
@@ -1282,7 +1204,7 @@ export default function ChatApp() {
         const initApp = async () => {
 
             try {
-                const publicProvider = new ethers.JsonRpcProvider(MONAD_TESTNET.rpcUrls.default.http[0]); // Using default RPC
+                const publicProvider = new ethers.JsonRpcProvider(MONAD_TESTNET.rpcUrls[0]);
                 const readOnlyContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, publicProvider);
 
                 await loadMessages(readOnlyContract);
@@ -1319,13 +1241,27 @@ export default function ChatApp() {
     
     useEffect(() => {
 
-    if (!isConnected || !chain) { // Removed provider and rawProvider check directly, relying on wagmi's `chain`
+    if (!isConnected || !provider || !rawProvider) {
         return;
     }
 
+    const handleAccountsChanged = (accounts) => {
+        if (accounts.length === 0) {
+            showPopup("Wallet disconnected.", "warning");
+            disconnectWallet();
+        } else {
+
+            initiateConnection(rawProvider, 'Wallet');
+        }
+    };
+
+    rawProvider.on('accountsChanged', handleAccountsChanged);
+
     const checkNetwork = async () => {
         try {
-            const onCorrectNetwork = chain?.id === monadTestnet.id;
+            const network = await provider.getNetwork();
+            const onCorrectNetwork = network.chainId === BigInt(MONAD_TESTNET.chainId);
+            
             setIsWrongNetwork(!onCorrectNetwork);
         } catch (error) {
             console.error("Error checking network:", error);
@@ -1340,12 +1276,12 @@ export default function ChatApp() {
     return () => {
         clearInterval(networkInterval);
 
-        // if (rawProvider && rawProvider.removeListener) { // This part depends on rawProvider handling, keep it if it's external to wagmi
-        //     rawProvider.removeListener('accountsChanged', handleAccountsChanged);
-        // }
+        if (rawProvider && rawProvider.removeListener) {
+            rawProvider.removeListener('accountsChanged', handleAccountsChanged);
+        }
     };
 
-    }, [isConnected, chain]); // Dependency on `chain` from wagmi
+    }, [isConnected, provider, rawProvider]);
 
     useEffect(() => {
         const handleClickOutside = (event) => {
@@ -1536,7 +1472,7 @@ export default function ChatApp() {
                                             <div
                                             className="dropdown-item text-red-400 hover:text-red-500"
                                             onClick={() => {
-                                                disconnectWallet(); // Changed to use local disconnectWallet
+                                                disconnect();
                                                 setShowDropdown(false);
                                             }}
                                         >
@@ -1659,10 +1595,7 @@ export default function ChatApp() {
 
                                         <div className={`message-bubble ${group.isOwn ? 'own' : 'other'}`}>
                                             {group.messages.map((message, msgIndex) => {
-                                                // const replyMessage = message.respondeA > 0 ? messages.find(m => m.id === message.respondeA) : null; // Original line - can be slow.
-                                                // Improved reply message lookup:
-                                                const replyMessage = message.respondeA > 0 ? filteredMessages.find(m => m.id === message.respondeA) : null;
-
+                                                const replyMessage = message.respondeA > 0 ? messages.find(m => m.id === message.respondeA) : null;
                                                 return (
                                                     <div
                                                         key={message.id}
@@ -1670,7 +1603,7 @@ export default function ChatApp() {
                                                         className={msgIndex > 0 ? 'mt-2 pt-2 border-t border-gray-700/50' : ''}
                                                     >
                                                         {message.respondeA > 0 && (() => {
-                                                            const replyMessage = filteredMessages.find(m => m.id === message.respondeA); // Use filteredMessages
+                                                            const replyMessage = messages.find(m => m.id === message.respondeA);
                                                             if (replyMessage && !replyMessage.excluida) {
                                                                 return (
                                                                     <div className="reply-preview" onClick={() => handleScrollToReply(message.respondeA)} title="Click to view the original message">
@@ -2037,7 +1970,6 @@ export default function ChatApp() {
                 onBanUser={banUser}
                 onUnbanUser={unbanUser}
                 onAddModerator={addModerator}
-                onChallenge={handleChallenge}
             />
 
             <EditProfileModal
@@ -2084,26 +2016,6 @@ export default function ChatApp() {
                 onClose={() => setShowConsoleModal(false)}
                 logs={consoleLogs}
             />
-
-            <GameSelectionModal
-                isOpen={showGameSelectionModal}
-                onClose={() => setShowGameSelectionModal(false)}
-                opponentUsername={selectedOpponentForChallenge?.username}
-                onChallenge={onChallengeConfirmed}
-            />
-
-            {activeGame && (
-                <GameModal
-                    isOpen={!!activeGame}
-                    onClose={onGameModalClose}
-                    gameType={activeGame}
-                    opponentAddress={gamePlayers.find(p => p.address !== address)?.address}
-                    opponentUsername={gamePlayers.find(p => p.address !== address)?.username}
-                    currentUserAddress={address}
-                    currentUsername={userProfile?.username}
-                    gameSessionId={gameSessionId}
-                />
-            )}
         </div>
     );
 }
