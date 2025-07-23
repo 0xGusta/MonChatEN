@@ -325,6 +325,44 @@ export default function ChatApp() {
             }
         };
     }, [isConnected, contract, isAppLoading]);
+
+    useEffect(() => {
+
+        let favicon = document.getElementById('favicon');
+        if (!favicon) {
+            favicon = document.createElement('link');
+            favicon.id = 'favicon';
+            favicon.rel = 'icon';
+            document.head.appendChild(favicon);
+        }
+        faviconRef.current = favicon;
+
+        const updateFavicon = () => {
+            if (document.hidden && unseenMessages > 0) {
+                
+                if (faviconRef.current) {
+                    faviconRef.current.href = 'public/favicon-new-message.ico';
+                }
+            } else {
+
+                if (faviconRef.current) {
+                    faviconRef.current.href = 'public/favicon.ico';
+                }
+            }
+        };
+
+        updateFavicon();
+
+        document.addEventListener('visibilitychange', updateFavicon);
+
+        return () => {
+            document.removeEventListener('visibilitychange', updateFavicon);
+
+            if (faviconRef.current) {
+                faviconRef.current.href = 'public/favicon.ico';
+            }
+        };
+    }, [unseenMessages]);
     
     useEffect(() => {
         if (balanceData) {
@@ -507,6 +545,9 @@ export default function ChatApp() {
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         setUnseenMessages(0);
+        if (faviconRef.current) {
+            faviconRef.current.href = 'public/favicon.ico';
+        }
     };
 
     const hidePopup = () => {
