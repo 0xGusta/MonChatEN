@@ -96,7 +96,6 @@ export default function ChatApp() {
     const lastTypingValue = useRef(false);
     const dropdownRef = useRef(null);
     const lightboxRef = useRef(null);
-    const faviconRef = useRef(document.getElementById('favicon'));
     const { onlineUsers, updateMyPresence, onlineCount } = usePresence(address, userProfile?.username);
     const [showConsoleModal, setShowConsoleModal] = useState(false);
     const [consoleLogs, setConsoleLogs] = useState([]);
@@ -326,44 +325,6 @@ export default function ChatApp() {
             }
         };
     }, [isConnected, contract, isAppLoading]);
-
-    useEffect(() => {
-
-        let favicon = document.getElementById('favicon');
-        if (!favicon) {
-            favicon = document.createElement('link');
-            favicon.id = 'favicon';
-            favicon.rel = 'icon';
-            document.head.appendChild(favicon);
-        }
-        faviconRef.current = favicon;
-
-        const updateFavicon = () => {
-            if (document.hidden && unseenMessages > 0) {
-                
-                if (faviconRef.current) {
-                    faviconRef.current.href = 'public/favicon-new-message.ico';
-                }
-            } else {
-
-                if (faviconRef.current) {
-                    faviconRef.current.href = 'public/favicon.ico';
-                }
-            }
-        };
-
-        updateFavicon();
-
-        document.addEventListener('visibilitychange', updateFavicon);
-
-        return () => {
-            document.removeEventListener('visibilitychange', updateFavicon);
-
-            if (faviconRef.current) {
-                faviconRef.current.href = 'public/favicon.ico';
-            }
-        };
-    }, [unseenMessages]);
     
     useEffect(() => {
         if (balanceData) {
@@ -546,9 +507,6 @@ export default function ChatApp() {
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         setUnseenMessages(0);
-        if (faviconRef.current) {
-            faviconRef.current.href = 'public/favicon.ico';
-        }
     };
 
     const hidePopup = () => {
