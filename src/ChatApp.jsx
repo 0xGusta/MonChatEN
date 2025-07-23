@@ -264,7 +264,11 @@ export default function ChatApp() {
                             console.log("[Polling] Using injected wallet provider (e.g., MetaMask).");
                         }
                     }
-            
+
+                    console.log("[Polling] Forcing update when fetching block number...");
+                    const blockNumber = await contract.runner.provider.getBlockNumber();
+                    console.log(`[Polling] Current block detected: ${blockNumber}`);
+                    
                     console.time("[Polling] Contract call 'contadorMensagens' duration");
                     const totalMessagesBigInt = await contract.contadorMensagens();
                     console.timeEnd("[Polling] Contract call 'contadorMensagens' duration");
