@@ -107,7 +107,7 @@ export default function GameModal({ isOpen, onClose, gameType, opponentAddress, 
             }
         } else if (event.key === 'ArrowRight') {
             if (!checkCollision(myGameState.currentPiece, myGameState.board, { x: 1, y: 0 })) {
-                setMyGameState(prev => ({ ...prev, currentPiece: { ...prev.currentPiece.pos, x: prev.currentPiece.pos.x + 1 } })));
+                setMyGameState(prev => ({ ...prev, currentPiece: { ...prev.currentPiece.pos, x: prev.currentPiece.pos.x + 1 } }));
             }
         } else if (event.key === 'ArrowDown') {
             updatePiecePosition(0, 1);
