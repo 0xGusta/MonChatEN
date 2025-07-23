@@ -232,10 +232,9 @@ export default function ChatApp() {
 
     }, [isConnected, address, walletClient, chain]);
 
-    // --- NEW: Polling useEffect with Advanced Debugging ---
     useEffect(() => {
-        if (!isConnected || !contract || isAppLoading || !walletClient) {
-            console.log("[Polling] Stopping polling: connection or contract unavailable.");
+        if (!isConnected || isAppLoading) {
+            console.log("[Polling] Stopping polling: wallet not connected or app is loading.");
             if (pollingIntervalRef.current) {
                 clearInterval(pollingIntervalRef.current);
                 pollingIntervalRef.current = null;
@@ -243,8 +242,33 @@ export default function ChatApp() {
             return;
         }
     
+        let readOnlyPollingContract = null;
+        const publicRpcUrls = MONAD_TESTNET.rpcUrls.default.http;
+    
+        const setupPollingProvider = () => {
+            for (const url of publicRpcUrls) {
+                try {
+                    console.log(`[Polling Setup] Attempting public RPC for polling: ${url}`);
+                    const publicProvider = new ethers.JsonRpcProvider(url);
+                    readOnlyPollingContract = new ethers.Contract(CONTRACT_ADDRESS, ABI, publicProvider);
+                    console.log(`[Polling Setup] Public RPC ${url} selected for polling.`);
+                    return;
+                } catch (e) {
+                    console.warn(`[Polling Setup] Failed to connect to public RPC ${url}.`);
+                }
+            }
+            console.error("[Polling Setup] Could not connect to any public RPCs for polling. Polling may not function.");
+        };
+    
+        setupPollingProvider();
+    
         const startPolling = () => {
-            console.log("[Polling] Starting message polling...");
+            if (!readOnlyPollingContract) {
+                console.error("[Polling] No read-only contract is available. Polling cannot start.");
+                return;
+            }
+    
+            console.log("[Polling] Starting message polling with a dedicated read-only provider.");
     
             if (pollingIntervalRef.current) {
                 clearInterval(pollingIntervalRef.current);
@@ -252,46 +276,29 @@ export default function ChatApp() {
     
             pollingIntervalRef.current = setInterval(async () => {
                 try {
-                    console.log("[Polling] Checking for new messages...");
-            
-                    // --- DEBUG LOG: Check which provider is being used ---
-                    if (contract.runner?.provider) {
-                        const connection = contract.runner.provider.connection;
-                        if(connection?.url) {
-                            console.log(`[Polling] Using RPC URL: ${connection.url}`);
-                        } else {
-                            // This usually means it's the wallet's injected provider (MetaMask)
-                            console.log("[Polling] Using injected wallet provider (e.g., MetaMask).");
-                        }
-                    }
-
-                    console.log("[Polling] Forcing update when fetching block number...");
-                    const blockNumber = await contract.runner.provider.getBlockNumber();
-                    console.log(`[Polling] Current block detected: ${blockNumber}`);
-                    
-                    console.time("[Polling] Contract call 'contadorMensagens' duration");
-                    const totalMessagesBigInt = await contract.contadorMensagens();
-                    console.timeEnd("[Polling] Contract call 'contadorMensagens' duration");
-                    
+                    console.log("[Polling] Checking for new messages using public provider...");
+    
+                    const blockNumber = await readOnlyPollingContract.runner.provider.getBlockNumber();
+                    console.log(`[Polling] Current block (via public RPC): ${blockNumber}`);
+    
+                    const totalMessagesBigInt = await readOnlyPollingContract.contadorMensagens();
                     const total = Number(totalMessagesBigInt);
                     const previous = lastMessageCountRef.current;
-            
-                    // --- DEBUG LOG: Log raw and converted values ---
-                    console.log(`[Polling] Raw response from contract:`, totalMessagesBigInt);
-                    console.log(`[Polling] Current total on contract: ${total}`);
+    
+                    console.log(`[Polling] Current total on contract (via public RPC): ${total}`);
                     console.log(`[Polling] Previous local total: ${previous}`);
-            
+    
                     if (total > previous) {
                         const newMessagesCount = total - previous;
                         console.log(`[Polling] New messages detected: ${newMessagesCount}`);
-            
+                        
+                        await loadLatestMessages(contract); 
+    
                         const container = messagesContainerRef.current;
                         const isAtBottom = container
                             ? (container.scrollHeight - container.scrollTop - container.clientHeight) < container.clientHeight
                             : true;
-            
-                        await loadLatestMessages(contract);
-            
+    
                         if (isAtBottom) {
                             console.log("[Polling] User is at bottom — auto-scrolling.");
                             setTimeout(() => scrollToBottom(), 300);
@@ -300,24 +307,18 @@ export default function ChatApp() {
                             setUnseenMessages(prev => prev + newMessagesCount);
                         }
                         
-                        // --- DEFENSIVE LOGIC: Only update local count if it has grown ---
-                        console.log(`[Polling] Updating local message count from ${previous} to ${total}.`);
+                        console.log(`[Polling] UPDATING local count from ${previous} to ${total}.`);
                         lastMessageCountRef.current = total;
-
-                    } else if (total < previous) {
-                        // --- DEFENSIVE LOGIC: Handle outdated RPC response ---
-                        console.warn(`[Polling] Contract message count (${total}) is LESS than local count (${previous}). Suspecting outdated RPC response. IGNORING this update.`);
-                    
+    
                     } else {
                         console.log("[Polling] No new messages.");
                     }
                 } catch (error) {
-                    console.error("[Polling] Error fetching messages:", error);
-                    if (error.info) {
-                       console.error("[Polling] Ethers error details:", error.info);
-                    }
+                    console.error("[Polling] Error fetching messages with public provider:", error);
+                    console.log("[Polling] Attempting to re-setup the polling provider...");
+                    setupPollingProvider();
                 }
-            }, 5000);
+            }, 7000);
         };
     
         startPolling();
@@ -329,12 +330,7 @@ export default function ChatApp() {
                 pollingIntervalRef.current = null;
             }
         };
-    }, [isConnected, contract, isAppLoading, walletClient]);
-
-    // (O resto do seu código permanece o mesmo)
-    // ... cole todo o resto do seu componente ChatApp.jsx aqui ...
-    
-    // Vou colar o restante para garantir que você tenha o arquivo completo
+    }, [isConnected, contract, isAppLoading]);
     
     useEffect(() => {
         if (balanceData) {
