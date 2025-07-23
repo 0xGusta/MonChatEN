@@ -11,9 +11,16 @@ export function useMessageSync(onNewMessage, myAddress) {
       isInitialMount.current = false;
       return;
     }
-
-    if (notification.timestamp > 0 && notification.sender?.toLowerCase() !== myAddress?.toLowerCase()) {
-      onNewMessage();
+  
+    if (
+      notification.timestamp > 0 &&
+      notification.sender?.toLowerCase() !== myAddress?.toLowerCase()
+    ) {
+      const timeout = setTimeout(() => {
+        onNewMessage();
+      }, 250);
+  
+      return () => clearTimeout(timeout);
     }
   }, [notification, myAddress, onNewMessage]);
 
