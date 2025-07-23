@@ -15,7 +15,7 @@ import ModerationModal from './components/ModerationModal';
 import GifPicker from './components/GifPicker';
 import OnlineCounter from './components/OnlineCounter';
 import LinkConfirmationModal from './components/LinkConfirmationModal';
-import ConsoleModal from './components/ConsoleModal'; // Import the new component
+import ConsoleModal from './components/ConsoleModal';
 import { useAccount, useDisconnect, useBalance, useWalletClient } from 'wagmi';
 import { BrowserProvider } from 'ethers';
 import { monadTestnet } from 'viem/chains';
