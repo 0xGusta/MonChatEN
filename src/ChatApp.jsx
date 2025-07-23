@@ -1132,7 +1132,7 @@ export default function ChatApp() {
                 } catch (error) {
                     console.error("Erro no polling:", error);
                 }
-            }, 5000);
+            }, 1000);
         };
     
         startPolling();
