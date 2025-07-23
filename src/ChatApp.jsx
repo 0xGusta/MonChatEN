@@ -895,7 +895,6 @@ export default function ChatApp() {
             await tx.wait();
             hidePopup();
             showPopup('User unbanned!', 'success');
-            notifyNewMessage();
             await loadMessages(contract);
         } catch (error) {
             hidePopup();
