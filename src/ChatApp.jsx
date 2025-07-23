@@ -505,7 +505,7 @@ export default function ChatApp() {
         }
     }, [contract, loadLatestMessages, scrollToBottom]);
 
-    const { notifyNewMessage } = useMessageSync(handleNewMessageNotification, address);
+    const { notifyNewMessage } = useMessageSync(stableHandleNewMessageNotification, address);
 
     useEffect(() => {
         handleNewMessageNotificationRef.current = handleNewMessageNotification;
