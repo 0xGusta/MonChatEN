@@ -208,7 +208,7 @@ export default function ChatApp() {
                 setIsWrongNetwork(false);
                 setUserProfile(null);
                 
-                const rpcUrls = MONAD_TESTNET.rpcUrls.default.http;
+                const rpcUrls = MONAD_TESTNET.rpcUrls;
                 let connectedContract = null;
 
                 for (const url of rpcUrls) {
