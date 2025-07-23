@@ -893,6 +893,12 @@ a:hover {
     border-bottom: 1px solid #374151;
 }
 
+.log-message {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+
 .log-entry:last-child {
     border-bottom: none;
 }
