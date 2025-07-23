@@ -2037,7 +2037,7 @@ export default function ChatApp() {
                 onBanUser={banUser}
                 onUnbanUser={unbanUser}
                 onAddModerator={addModerator}
-                onChallenge={handleChallenge} {/* Passed the new prop here */}
+                onChallenge={handleChallenge}
             />
 
             <EditProfileModal
@@ -2085,7 +2085,6 @@ export default function ChatApp() {
                 logs={consoleLogs}
             />
 
-            {/* New: Game Selection Modal */}
             <GameSelectionModal
                 isOpen={showGameSelectionModal}
                 onClose={() => setShowGameSelectionModal(false)}
@@ -2093,7 +2092,6 @@ export default function ChatApp() {
                 onChallenge={onChallengeConfirmed}
             />
 
-            {/* New: Game Modal (Tetris) */}
             {activeGame && (
                 <GameModal
                     isOpen={!!activeGame}
