@@ -20,7 +20,6 @@ import { BrowserProvider } from 'ethers';
 import { monadTestnet } from 'viem/chains';
 import PhotoSwipe from 'photoswipe';
 import 'photoswipe/dist/photoswipe.css';
-import { useMessageSync } from './hooks/useMessageSync';
 
 async function walletClientToSigner(walletClient) {
     const { account, chain, transport } = walletClient;
@@ -97,7 +96,6 @@ export default function ChatApp() {
     const dropdownRef = useRef(null);
     const lightboxRef = useRef(null);
     const { onlineUsers, updateMyPresence, onlineCount } = usePresence(address, userProfile?.username);
-    const handleNewMessageNotificationRef = useRef();
 
     const MESSAGES_PER_PAGE = 25;
 
@@ -485,35 +483,74 @@ export default function ChatApp() {
             isFetchingNewerMessages.current = false;
         }
     };
-
-    const handleNewMessageNotification = useCallback(async () => {
-        if (!contract) return;
-
-        const container = messagesContainerRef.current;
-        const isAtBottom = container ? (container.scrollHeight - container.scrollTop - container.clientHeight) < container.clientHeight : true;
-
-        await loadLatestMessages(contract);
-
-        if (isAtBottom) {
-            setTimeout(() => scrollToBottom(), 300);
-        } else {
-            const totalMessages = await contract.contadorMensagens();
-            const newMessagesCount = Number(totalMessages) - lastMessageCountRef.current;
-            if (newMessagesCount > 0) {
-                setUnseenMessages(prev => prev + newMessagesCount);
-            }
-        }
-    }, [contract, loadLatestMessages, scrollToBottom]);
-
-    const stableHandleNewMessageNotification = useCallback(() => {
-        handleNewMessageNotificationRef.current?.();
-    }, []);
-
+    
     useEffect(() => {
-        handleNewMessageNotificationRef.current = handleNewMessageNotification;
-    });
+        if (contract) {
+            const onNewMessage = (id, remetente, usuario, conteudo, imageHash, timestamp, respondeA) => {
+                const newMessage = {
+                    id: Number(id),
+                    remetente,
+                    usuario,
+                    conteudo,
+                    imageHash,
+                    timestamp: Number(timestamp),
+                    excluida: false,
+                    respondeA: Number(respondeA),
+                    senderProfile: userProfilesCache.get(remetente.toLowerCase())
+                };
 
-    const { notifyNewMessage } = useMessageSync(stableHandleNewMessageNotification, address);
+                setMessages(prevMessages => {
+                    const messageExists = prevMessages.some(msg => msg.id === newMessage.id);
+                    if (!messageExists) {
+                        const updatedMessages = [...prevMessages, newMessage];
+                        updatedMessages.sort((a, b) => a.timestamp - b.timestamp);
+                        return updatedMessages;
+                    }
+                    return prevMessages;
+                });
+            };
+
+            const onEditMessage = (id, novoConteudo) => {
+                setMessages(prevMessages =>
+                    prevMessages.map(msg =>
+                        msg.id === Number(id) ? { ...msg, conteudo: novoConteudo } : msg
+                    )
+                );
+            };
+
+            const onDeleteMessage = (id) => {
+                setMessages(prevMessages =>
+                    prevMessages.map(msg =>
+                        msg.id === Number(id) ? { ...msg, excluida: true } : msg
+                    )
+                );
+            };
+
+            const onUserBanned = (address, username) => {
+                console.log(`User ${username} (${address}) was banned.`);
+                loadMessages(contract);
+            };
+            
+            const onMonSent = (from, to, value, message) => {
+                loadLatestMessages(contract);
+            }
+
+            contract.on('MensagemEnviada', onNewMessage);
+            contract.on('MensagemEditada', onEditMessage);
+            contract.on('MensagemExcluida', onDeleteMessage);
+            contract.on('UsuarioBanido', onUserBanned);
+            contract.on('MonEnviado', onMonSent);
+
+            return () => {
+                contract.off('MensagemEnviada', onNewMessage);
+                contract.off('MensagemEditada', onEditMessage);
+                contract.off('MensagemExcluida', onDeleteMessage);
+                contract.off('UsuarioBanido', onUserBanned);
+                contract.off('MonEnviado', onMonSent);
+            };
+        }
+    }, [contract]);
+
         
     const handleSelectGif = (gifUrl) => {
         setSelectedGifUrl(gifUrl); 
@@ -745,7 +782,6 @@ export default function ChatApp() {
             const tx = await contract.enviarMensagem(textContent, imageHashContent, replyId);
             await tx.wait();
             
-            notifyNewMessage();
 
             setNewMessage('');
             setSelectedImage(null);
@@ -776,7 +812,7 @@ export default function ChatApp() {
             showPopup('Message edited!', 'success');
             setEditingMessage(null);
             setNewMessage('');
-            notifyNewMessage();
+            
             await loadMessages(contract);
         } catch (error) {
             hidePopup();
@@ -792,7 +828,7 @@ export default function ChatApp() {
             await tx.wait();
             hidePopup();
             showPopup('Message deleted!', 'success');
-            notifyNewMessage();
+            
             await loadMessages(contract);
         } catch (error) {
             hidePopup();
@@ -859,7 +895,7 @@ export default function ChatApp() {
 
             refetchBalance();
 
-            notifyNewMessage();
+            
             await loadLatestMessages(contractWithSigner);
 
         } catch (error) {
@@ -882,7 +918,7 @@ export default function ChatApp() {
             await tx.wait();
             hidePopup();
             showPopup('User banned!', 'success');
-            notifyNewMessage();
+            
             await loadMessages(contract);
         } catch (error) {
             hidePopup();
