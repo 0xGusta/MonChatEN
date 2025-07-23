@@ -25,7 +25,6 @@ export function usePresence(userId, userName) {
   const [now, setNow] = useState(Date.now());
   const isInitialized = useRef(false);
   const timeOffset = useRef(0);
-  setTimeOffset(offset);
 
   useEffect(() => {
     const fetchWorldTime = async () => {
