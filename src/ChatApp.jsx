@@ -461,61 +461,65 @@ export default function ChatApp() {
     }, [setSelectedImage, setSelectedGifUrl, showPopup]);
 
     useEffect(() => {
-            const pendingChallengesForMe = Object.values(challenges).find(c => {
-               
-                if (!c || !c.opponent || !c.opponent.address || !address) {
-                    return false;
-                }
-                return c.opponent.address.toLowerCase() === address.toLowerCase() && c.status === 'pending';
-            });
-        
-            if (pendingChallengesForMe) {
-                setIncomingChallenge(pendingChallengesForMe);
-            } else {
-                setIncomingChallenge(null);
+        const pendingChallengesForMe = Object.values(challenges).find(c => {
+            if (!c || !c.opponent || !c.opponent.address || !address) {
+                return false;
             }
-        
-           
-            Object.values(challenges).forEach(c => {
-                
-                if (!c || !c.challenger || !c.challenger.address || !c.opponent || !address) {
-                    return;
-                }
-        
-                if (c.challenger.address.toLowerCase() === address.toLowerCase()) {
-                    if (c.status === 'accepted' && !activeGame) {
-                        setActiveGame(c.game);
-                        setGamePlayers({
-                            challenger: c.challenger,
-                            opponent: c.opponent
-                        });
-                        setGameSessionId(c.id);
-                        showPopup(`Challenge accepted by ${c.opponent.username}! Game starting...`, 'success');
-                        setChallenges(prev => {
-                            const newChallenges = { ...prev };
-                            if (newChallenges[c.id]) {
-                            newChallenges[c.id] = { ...newChallenges[c.id], status: 'active' };
+            return (
+                c.opponent.address.toLowerCase() === address.toLowerCase() &&
+                c.status === 'pending'
+            );
+        });
+    
+        if (pendingChallengesForMe) {
+            setIncomingChallenge(pendingChallengesForMe);
+        } else {
+            setIncomingChallenge(null);
+        }
+    
+        Object.values(challenges).forEach(c => {
+            if (!c || !c.challenger || !c.challenger.address || !c.opponent || !address) {
+                return;
+            }
+    
+            if (c.challenger.address.toLowerCase() === address.toLowerCase()) {
+                if (c.status === 'accepted' && !activeGame) {
+                    setActiveGame(c.game);
+                    setGamePlayers({
+                        challenger: c.challenger,
+                        opponent: c.opponent,
+                    });
+                    setGameSessionId(c.id);
+                    showPopup(
+                        `Challenge accepted by ${c.opponent.username}! Game starting...`,
+                        'success'
+                    );
+                    setChallenges(prev => {
+                        const newChallenges = { ...prev };
+                        if (newChallenges[c.id]) {
+                            newChallenges[c.id] = {
+                                ...newChallenges[c.id],
+                                status: 'active',
+                            };
                         }
                         return newChallenges;
                     });
-                            
-                    } else if (c.status === 'declined') {
-                        showPopup(`${c.opponent.username} declined your challenge.`, 'info');
-
-                        setTimeout(() => {
-                            setChallenges(prev => {
-                                const newState = { ...prev };
-                                if (newState[c.id]) {
-                                    delete newState[c.id];
-                                }
-                                return newState;
-                            });
-                        }, 500);
-                    }
-                    } else if (c.rematch?.status === 'pending' && !incomingChallenge) {
+                } else if (c.status === 'declined') {
+                    showPopup(`${c.opponent.username} declined your challenge.`, 'info');
+    
+                    setTimeout(() => {
+                        setChallenges(prev => {
+                            const newState = { ...prev };
+                            if (newState[c.id]) {
+                                delete newState[c.id];
+                            }
+                            return newState;
+                        });
+                    }, 500);
+                } else if (c.rematch?.status === 'pending' && !incomingChallenge) {
                     setIncomingChallenge({ ...c, isRematch: true });
                 } else if (c.rematch?.status === 'declined') {
-                    showPopup("Opponent declined rematch.", "info");
+                    showPopup('Opponent declined rematch.', 'info');
                     setChallenges(prev => {
                         const newState = { ...prev };
                         if (newState[c.id]) {
@@ -526,9 +530,8 @@ export default function ChatApp() {
                 }
             }
         });
-    
     }, [challenges, address, activeGame, setChallenges, incomingChallenge, showPopup]);
-    
+
     useLayoutEffect(() => {
         const container = messagesContainerRef.current;
         if (container && scrollAnchorRef.current?.scrollHeight) {
