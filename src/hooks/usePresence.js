@@ -67,14 +67,17 @@ export function usePresence(userId, userName) {
     const lowerCaseUserId = userId.toLowerCase();
 
     const updateMyPresenceData = () => {
-      setPresence(prev => ({
-        ...prev,
-        [lowerCaseUserId]: {
-          ...(prev[lowerCaseUserId] || {}),
-          name: userName,
-          lastSeen: getSyncedNow(),
-        },
-      }));
+      setPresence(prev => {
+        const currentPresence = prev || {};
+        return {
+          ...currentPresence,
+          [lowerCaseUserId]: {
+            ...(currentPresence[lowerCaseUserId] || {}),
+            name: userName,
+            lastSeen: getSyncedNow(),
+          },
+        };
+      });
     };
 
     updateMyPresenceData();
@@ -99,18 +102,21 @@ export function usePresence(userId, userName) {
   const updateMyPresence = (data) => {
     if (!userId) return;
     const lowerCaseUserId = userId.toLowerCase();
-    setPresence(prev => ({
-      ...prev,
-      [lowerCaseUserId]: {
-        ...(prev[lowerCaseUserId] || {}),
-        ...data,
-        lastSeen: getSyncedNow(),
-      },
-    }));
+    setPresence(prev => {
+      const currentPresence = prev || {};
+      return {
+        ...currentPresence,
+        [lowerCaseUserId]: {
+          ...(currentPresence[lowerCaseUserId] || {}),
+          ...data,
+          lastSeen: getSyncedNow(),
+        },
+      };
+    });
   };
 
   const onlineUsers = useMemo(() => {
-    return Object.keys(presence)
+    return Object.keys(presence || {})
       .map(key => {
         const user = presence[key];
         if (!user || !user.name || !user.lastSeen) {
