@@ -1419,21 +1419,10 @@ export default function ChatApp() {
         showPopup("Challenge declined.", "info");
     };
     
-    const handleGameEnd = useCallback((sessionId, result, winnerName = '') => {
+    const handleGameEnd = useCallback((sessionId, result) => {
         setActiveGame(null);
         setGamePlayers(null);
         setGameSessionId(null);
-        
-        const currentChallenge = challenges[sessionId];
-        if (currentChallenge && currentChallenge.rematch?.status === 'declined') {
-
-        } else {
-            setChallenges(prev => {
-                const newState = { ...prev };
-                delete newState[sessionId];
-                return newState;
-            });
-        }
     
         if (result === 'closed') {
             showPopup("Game closed.", "info");
@@ -1441,15 +1430,16 @@ export default function ChatApp() {
             showPopup("Opponent left the game. Game over.", "warning");
         } else if (result === 'rematch_declined') {
             showPopup("Rematch declined by opponent.", "info");
+        }
+
+        if (result !== 'rematch_declined') {
             setChallenges(prev => {
                 const newState = { ...prev };
-                if (newState[sessionId]) {
-                    delete newState[sessionId].rematch;
-                }
+                delete newState[sessionId];
                 return newState;
             });
         }
-    }, [setChallenges, setActiveGame, setGamePlayers, setGameSessionId, showPopup, challenges]);
+    }, [setChallenges, showPopup]);
     
     const handleRematchOffer = useCallback((sessionId, symbol, status = 'pending') => {
         setChallenges(prev => ({
