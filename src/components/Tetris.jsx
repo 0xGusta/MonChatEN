@@ -43,11 +43,10 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
     const lastTimeRef = useRef(0);
     const dropCounterRef = useRef(0);
 
-    // CORREÇÃO: Função de colisão mais robusta para evitar falhas.
     const checkCollision = useCallback((playerPiece, board) => {
-        // Garante que a peça e o tabuleiro são válidos antes de verificar.
+        
         if (!playerPiece.shape || !board) {
-            return true; // Retorna true para previnir movimentos se o estado estiver inválido.
+            return true;
         }
 
         const { shape, pos } = playerPiece;
@@ -109,10 +108,11 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
         if (!player.shape || gameState[mySymbol].gameOver) return;
         const clonedPlayer = JSON.parse(JSON.stringify(player));
         const rotate = (matrix) => {
-            const rotated = matrix.map((_, index) => matrix.map(col => col[index]));
-            if (dir > 0) return rotated.map(row => row.reverse());
-            return rotated.reverse();
-        };
+    const transposed = matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
+     return dir > 0
+         ? transposed.map(row => row.reverse())     // Clockwise
+         : transposed.reverse();                    // Counter-clockwise
+      };
         clonedPlayer.shape = rotate(clonedPlayer.shape);
         let offset = 1;
         const board = gameState[mySymbol].board;
