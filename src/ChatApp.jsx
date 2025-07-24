@@ -1430,10 +1430,11 @@ export default function ChatApp() {
     };
     
     const handleDeclineChallenge = useCallback((challengeId) => {
-        setChallenges(prev => ({
-            ...prev,
-            [challengeId]: { ...prev[challengeId], status: 'declined' }
-        }));
+        setChallenges(prev => {
+            const newState = { ...prev };
+            delete newState[challengeId];
+            return newState;
+        });
         setIncomingChallenge(null);
         showPopup("Challenge declined.", "info");
     }, [setChallenges, showPopup]);
