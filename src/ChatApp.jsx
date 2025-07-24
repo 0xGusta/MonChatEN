@@ -16,6 +16,8 @@ import GifPicker from './components/GifPicker';
 import OnlineCounter from './components/OnlineCounter';
 import LinkConfirmationModal from './components/LinkConfirmationModal';
 import ConsoleModal from './components/ConsoleModal';
+import ChallengeModal from './components/ChallengeModal';
+import GameModal from './components/GameModal';
 import { useAccount, useDisconnect, useBalance, useWalletClient } from 'wagmi';
 import { BrowserProvider } from 'ethers';
 import { monadTestnet } from 'viem/chains';
@@ -81,6 +83,9 @@ export default function ChatApp() {
     const [rawProvider, setRawProvider] = useState(null);
     const [challenges, setChallenges] = useStateTogether('challenges', {});
     const [activeGame, setActiveGame] = useState(null);
+    const [gamePlayers, setGamePlayers] = useState(null);
+    const [gameSessionId, setGameSessionId] = useState(null);
+    const [incomingChallenge, setIncomingChallenge] = useState(null);
     const messagesContainerRef = useRef(null);
     const messagesEndRef = useRef(null);
     const fileInputRef = useRef(null);
@@ -456,30 +461,48 @@ export default function ChatApp() {
     }, [setSelectedImage, setSelectedGifUrl, showPopup]);
 
     useEffect(() => {
-        const myAcceptedChallenge = Object.entries(challenges).find(([, challenge]) =>
-            challenge?.challenger?.address?.toLowerCase() === address?.toLowerCase() &&
-            challenge.status === 'accepted'
+        const pendingChallengesForMe = Object.values(challenges).find(
+            c => c.opponent.address.toLowerCase() === address?.toLowerCase() && c.status === 'pending'
         );
-
-        if (myAcceptedChallenge && !activeGame) {
-            const [challengeId, challengeData] = myAcceptedChallenge;
-
-            setGamePlayers([
-                { address: challengeData.challenger.address, username: challengeData.challenger.username },
-                { address: challengeData.opponent.address, username: challengeData.opponent.username }
-            ]);
-            setGameSessionId(challengeData.gameSessionId);
-            setActiveGame(challengeData.game);
-
-            setChallenges(prev => {
-                const newChallenges = { ...prev };
-                if (newChallenges[challengeId]) {
-                    newChallenges[challengeId].status = 'started';
-                }
-                return newChallenges;
-            });
+        if (pendingChallengesForMe) {
+            setIncomingChallenge(pendingChallengesForMe);
+        } else {
+            setIncomingChallenge(null);
         }
-    }, [challenges, address, activeGame, setChallenges]);
+    
+        Object.values(challenges).forEach(c => {
+            if (c.challenger.address.toLowerCase() === address?.toLowerCase()) {
+                if (c.status === 'accepted' && !activeGame && c.gameSessionId === c.id) {
+                    setActiveGame(c.game);
+                    setGamePlayers({
+                        challenger: c.challenger,
+                        opponent: c.opponent
+                    });
+                    setGameSessionId(c.id);
+                    showPopup(`Challenge accepted by ${c.opponent.username}! Game starting...`, 'success');
+                } else if (c.status === 'declined') {
+                    showPopup(`${c.opponent.username} declined your challenge.`, 'info');
+                    setChallenges(prev => {
+                        const newState = { ...prev };
+                        delete newState[c.id];
+                        return newState;
+                    });
+                } else if (c.rematch?.status === 'pending' && !incomingChallenge) {
+                    setIncomingChallenge({ ...c, isRematch: true });
+                } else if (c.rematch?.status === 'declined') {
+                    showPopup("Opponent declined rematch.", "info");
+                    setChallenges(prev => {
+                        const newState = { ...prev };
+                        if (newState[c.id]) {
+                            delete newState[c.id].rematch;
+                        }
+                        return newState;
+                    });
+                }
+            }
+        });
+    
+    }, [challenges, address, activeGame, setChallenges, incomingChallenge, showPopup]);
 
     useLayoutEffect(() => {
         const container = messagesContainerRef.current;
@@ -1345,6 +1368,90 @@ export default function ChatApp() {
         }
     });
 
+    const handleChallengeUser = (opponentAddress, opponentUsername) => {
+        if (!isConnected || !userProfile?.exists) {
+            showPopup("You must be connected and have a profile to challenge someone.", "error");
+            return;
+        }
+        if (activeGame) {
+            showPopup("You are already in a game!", "warning");
+            return;
+        }
+    
+        const challengeId = `challenge-${Date.now()}-${address.slice(2, 8)}-${opponentAddress.slice(2, 8)}`;
+        const newChallenge = {
+            id: challengeId,
+            challenger: { address: address, username: userProfile.username },
+            opponent: { address: opponentAddress, username: opponentUsername },
+            game: 'tictactoe',
+            status: 'pending',
+            createdAt: Date.now()
+        };
+        setChallenges(prev => ({ ...prev, [challengeId]: newChallenge }));
+        showPopup(`Challenge sent to ${opponentUsername}!`, 'info');
+    };
+    
+    const handleAcceptChallenge = (challengeId) => {
+        const challengeToAccept = challenges[challengeId];
+        if (!challengeToAccept) return;
+    
+        setChallenges(prev => ({
+            ...prev,
+            [challengeId]: { ...prev[challengeId], status: 'accepted' }
+        }));
+    
+        setActiveGame(challengeToAccept.game);
+        setGamePlayers({
+            challenger: challengeToAccept.challenger,
+            opponent: challengeToAccept.opponent
+        });
+        setGameSessionId(challengeId);
+        setIncomingChallenge(null);
+        showPopup(`Accepted challenge from ${challengeToAccept.challenger.username}! Game starting...`, 'success');
+    };
+    
+    const handleDeclineChallenge = (challengeId) => {
+        setChallenges(prev => ({
+            ...prev,
+            [challengeId]: { ...prev[challengeId], status: 'declined' }
+        }));
+        setIncomingChallenge(null);
+        showPopup("Challenge declined.", "info");
+    };
+    
+    const handleGameEnd = useCallback((sessionId, result, winnerName = '') => {
+        setActiveGame(null);
+        setGamePlayers(null);
+        setGameSessionId(null);
+        setChallenges(prev => {
+            const newState = { ...prev };
+            delete newState[sessionId];
+            return newState;
+        });
+    
+        if (result === 'closed') {
+            showPopup("Game closed.", "info");
+        } else if (result === 'opponent_left') {
+            showPopup("Opponent left the game. Game over.", "warning");
+        } else if (result === 'draw') {
+            showPopup("Game ended in a draw!", "info");
+        } else if (result === 'finished') {
+            showPopup(`Game finished! Winner: ${winnerName}`, "success");
+        } else if (result === 'rematch_declined') {
+            showPopup("Rematch declined by opponent.", "info");
+        }
+    }, [setChallenges, setActiveGame, setGamePlayers, setGameSessionId, showPopup]);
+    
+    const handleRematchOffer = useCallback((sessionId, symbol, status = 'pending') => {
+        setChallenges(prev => ({
+            ...prev,
+            [sessionId]: {
+                ...prev[sessionId],
+                rematch: { by: symbol, status: status }
+            }
+        }));
+    }, [setChallenges]);
+
     return (
         <div className="app-container">
             <header className="header-fixed flex items-center justify-between px-4">
@@ -1940,6 +2047,28 @@ export default function ChatApp() {
                     )}
                 </button>
 
+            {incomingChallenge && (
+                <ChallengeModal
+                    isOpen={!!incomingChallenge}
+                    onClose={() => setIncomingChallenge(null)}
+                    challenge={incomingChallenge}
+                    onAccept={handleAcceptChallenge}
+                    onDecline={handleDeclineChallenge}
+                />
+            )}
+            {activeGame && gamePlayers && gameSessionId && (
+                <GameModal
+                    isOpen={!!activeGame}
+                    onClose={() => handleGameEnd(gameSessionId, 'closed')}
+                    gameType={activeGame}
+                    players={gamePlayers}
+                    sessionId={gameSessionId}
+                    myAddress={address}
+                    onGameEnd={handleGameEnd}
+                    onRematchOffer={handleRematchOffer}
+                />
+            )}
+
             {popup && <Popup {...popup} />}
 
             <ProfileModal
@@ -1947,6 +2076,7 @@ export default function ChatApp() {
                 onClose={() => setShowProfileModal(false)}
                 userAddress={selectedUserAddress}
                 userProfile={selectedUserProfile}
+                onChallengeUser={handleChallengeUser}
                 isOnline={
                     selectedUserAddress &&
                     onlineUsers.find(u => u.userId?.toLowerCase() === selectedUserAddress.toLowerCase())?.isOnline
