@@ -1396,7 +1396,7 @@ export default function ChatApp() {
         }
     });
 
-    const handleChallengeUser = (opponentAddress, opponentUsername) => {
+    const handleChallengeUser = (opponentAddress, opponentUsername, gameType) => {
         if (!isConnected || !userProfile?.exists) {
             showPopup("You must be connected and have a profile to challenge someone.", "error");
             return;
@@ -1411,7 +1411,7 @@ export default function ChatApp() {
             id: challengeId,
             challenger: { address: address, username: userProfile.username },
             opponent: { address: opponentAddress, username: opponentUsername },
-            game: 'tictactoe',
+            game: gameType,
             status: 'pending',
             createdAt: Date.now()
         };
