@@ -30,7 +30,7 @@ export default function ChallengeModal({ isOpen, challenge, onAccept, onDecline 
 
     return (
         <div 
-            className="fixed top-5 right-5 z-50 w-full max-w-sm rounded-lg p-4 shadow-lg text-white animate-slideInLeft"
+            className="fixed top-5 left-5 z-50 w-full max-w-sm rounded-lg p-4 shadow-lg text-white animate-slideInLeft"
             style={{ 
                 background: 'linear-gradient(135deg, #1A1A2E, #16213E)', 
                 border: '1px solid #374151' 
