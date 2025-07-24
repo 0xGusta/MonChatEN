@@ -109,20 +109,24 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
         setRematchStatus('declined');
         onGameEnd(sessionId, 'rematch_declined');
     };
+    
+    const handleCloseGame = () => {
+        onGameEnd(sessionId, 'closed');
+    };
 
     let displayStatus;
     if (winner) {
         if (winner === 'Draw') {
-            displayStatus = 'It\'s a Draw!';
+            displayStatus = 'Empate!';
         } else {
-            displayStatus = `Winner: ${getPlayerName(winner)}!`;
+            displayStatus = `Vencedor: ${getPlayerName(winner)}!`;
         }
     } else if (status === 'opponent_left') {
-        displayStatus = 'Opponent left the game. Game over.';
+        displayStatus = 'O oponente saiu do jogo. Fim de jogo.';
     } else if (rematchStatus === 'pending') {
-        displayStatus = `Rematch requested by ${rematchStatus === 'pending' && players.challenger.address.toLowerCase() === myAddress.toLowerCase() ? getPlayerName(opponentSymbol) : getPlayerName(mySymbol)}...`;
+        displayStatus = `Pedido de revanche enviado por ${rematchStatus === 'pending' && players.challenger.address.toLowerCase() === myAddress.toLowerCase() ? getPlayerName(opponentSymbol) : getPlayerName(mySymbol)}...`;
     } else {
-        displayStatus = `Next player: ${getPlayerName(xIsNext ? 'X' : 'O')} (${isMyTurn ? 'Your turn' : 'Opponent\'s turn'})`;
+        displayStatus = `Próximo a jogar: ${getPlayerName(xIsNext ? 'X' : 'O')} (${isMyTurn ? 'Sua vez' : 'Vez do oponente'})`;
     }
 
     return (
@@ -149,16 +153,19 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
                 <div className="text-center mt-4">
                     {rematchStatus === 'pending' && players.challenger.address.toLowerCase() !== myAddress.toLowerCase() ? (
                         <>
-                            <p className="mb-2">{getPlayerName(opponentSymbol)} wants to play again!</p>
-                            <button onClick={handleAcceptRematch} className="btn btn-primary mr-2">Accept Rematch</button>
-                            <button onClick={handleDeclineRematch} className="btn btn-secondary">Decline</button>
+                            <p className="mb-2">{getPlayerName(opponentSymbol)} quer jogar novamente!</p>
+                            <button onClick={handleAcceptRematch} className="btn btn-primary mr-2">Aceitar Revanche</button>
+                            <button onClick={handleDeclineRematch} className="btn btn-secondary">Recusar</button>
                         </>
                     ) : rematchStatus === 'pending' ? (
-                        <p>Waiting for {getPlayerName(opponentSymbol)} to accept rematch...</p>
+                        <p>Aguardando {getPlayerName(opponentSymbol)} aceitar a revanche...</p>
                     ) : rematchStatus === 'declined' ? (
-                        <p>Rematch declined.</p>
+                        <p>Revanche recusada.</p>
                     ) : (
-                        <button onClick={handleRematchRequest} className="btn btn-primary">Play Again?</button>
+                        <div className="flex gap-2 justify-center">
+                            <button onClick={handleRematchRequest} className="btn btn-primary">Jogar Novamente?</button>
+                            <button onClick={handleCloseGame} className="btn btn-secondary">Fechar</button>
+                        </div>
                     )}
                 </div>
             )}
