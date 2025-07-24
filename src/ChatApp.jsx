@@ -1421,14 +1421,14 @@ export default function ChatApp() {
         showPopup(`Accepted challenge from ${challengeToAccept.challenger.username}! Game starting...`, 'success');
     };
     
-    const handleDeclineChallenge = (challengeId) => {
+    const handleDeclineChallenge = useCallback((challengeId) => {
         setChallenges(prev => ({
             ...prev,
             [challengeId]: { ...prev[challengeId], status: 'declined' }
         }));
         setIncomingChallenge(null);
         showPopup("Challenge declined.", "info");
-    };
+    }, [setChallenges, showPopup]);
     
     const handleGameEnd = useCallback((sessionId, result) => {
         setActiveGame(null);
