@@ -1442,13 +1442,20 @@ export default function ChatApp() {
     }, [setChallenges, showPopup]);
     
     const handleRematchOffer = useCallback((sessionId, symbol, status = 'pending') => {
-        setChallenges(prev => ({
-            ...prev,
-            [sessionId]: {
-                ...prev[sessionId],
-                rematch: { by: symbol, status: status }
+        setChallenges(prev => {
+
+            if (!prev[sessionId]) {
+                return prev;
             }
-        }));
+    
+            return {
+                ...prev,
+                [sessionId]: {
+                    ...prev[sessionId],
+                    rematch: { by: symbol, status: status }
+                }
+            };
+        });
     }, [setChallenges]);
 
     return (
