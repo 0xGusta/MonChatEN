@@ -50,7 +50,7 @@ export default function ChallengeModal({ isOpen, challenge, onAccept, onDecline 
         >
             <h2 className="text-xl font-bold mb-2">Game Challenge! ⚔️</h2>
             <p className="text-gray-300 mb-4">
-                <span className="font-semibold">{challenge.challenger.username}</span> desafiou você para uma partida!
+                <span className="font-semibold">{challenge.challenger.username}</span> challenged you to a match!
             </p>
             
             <div className="w-full bg-gray-700 rounded-full h-1.5 mb-4">
@@ -58,7 +58,7 @@ export default function ChallengeModal({ isOpen, challenge, onAccept, onDecline 
             </div>
 
             <p className="text-gray-400 text-sm mb-4 text-center">
-                Tempo para responder: {timeLeft}s
+                Time left to decide: {timeLeft}s
             </p>
 
             <div className="flex gap-2 justify-end">
