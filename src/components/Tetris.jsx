@@ -238,7 +238,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
     }, [handleKeyDown]);
 
     return (
-        <div className="flex flex-col md:flex-row justify-center items-center gap-4">
+        <div className="flex flex-row justify-center items-center gap-4">
             <div className="text-center">
                 <h3 className="font-bold">{players.challenger.username} (You)</h3>
                 <canvas ref={gameAreaRef} width={COLS * BLOCK_SIZE} height={ROWS * BLOCK_SIZE} className="border-2 border-monad bg-darkCard" />
