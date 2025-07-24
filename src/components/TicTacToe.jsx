@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useStateTogether } from 'react-together';
+import { getSyncedNow } from '../utils/timeSync';
 
 const initialBoard = Array(9).fill(null);
 
@@ -9,8 +10,8 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
     const [status, setStatus] = useStateTogether(`tictactoe-status-${sessionId}`, 'playing');
     const [winner, setWinner] = useStateTogether(`tictactoe-winner-${sessionId}`, null);
     const [rematchStatus, setRematchStatus] = useStateTogether(`tictactoe-rematch-${sessionId}`, null);
-    const [lastMoveX, setLastMoveX] = useStateTogether(`tictactoe-lastMoveX-${sessionId}`, Date.now());
-    const [lastMoveO, setLastMoveO] = useStateTogether(`tictactoe-lastMoveO-${sessionId}`, Date.now());
+    const [lastMoveX, setLastMoveX] = useStateTogether(`tictactoe-lastMoveX-${sessionId}`, getSyncedNow());
+    const [lastMoveO, setLastMoveO] = useStateTogether(`tictactoe-lastMoveO-${sessionId}`, getSyncedNow());
     const [playerStatus, setPlayerStatus] = useStateTogether(`tictactoe-playerStatus-${sessionId}`, {
         X: 'online',
         O: 'online',
@@ -84,7 +85,7 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
         const interval = setInterval(() => {
             if (status !== 'playing' || winner) return;
             const opponentLast = mySymbol === 'X' ? lastMoveO : lastMoveX;
-            if (Date.now() - opponentLast > 35000) {
+            if (getSyncedNow() - opponentLast > 35000) {
                 setPlayerStatus(prev => ({
                     ...prev,
                     [opponentSymbol]: 'closed'
@@ -100,7 +101,7 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
         newBoard[i] = xIsNext ? 'X' : 'O';
         setBoard(newBoard);
         setXIsNext(!xIsNext);
-        const now = Date.now();
+        const now = getSyncedNow();
         if (mySymbol === 'X') setLastMoveX(now);
         else setLastMoveO(now);
     };
@@ -127,7 +128,7 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
         setWinner(null);
         setStatus('playing');
         setRematchStatus(null);
-        const now = Date.now();
+        const now = getSyncedNow();
         setLastMoveX(now);
         setLastMoveO(now);
         setPlayerStatus(prev => ({
