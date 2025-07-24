@@ -26,17 +26,25 @@ export default function ProfileModal({ isOpen, onClose, userAddress, userProfile
                         <div className="flex flex-row gap-2 justify-center">
                             {isOwnProfile && (<button onClick={onEditProfile} className="btn btn-secondary flex-1"><i className="fas fa-edit"></i>Edit Profile</button>)}
                             {isConnected && !isOwnProfile && (<button onClick={() => onSendMON(userAddress)} className="btn btn-primary flex-1"><i className="fas fa-coins"></i> Send MON</button>)}
-                            {isConnected && !isOwnProfile && isOnline && (
+                            {isConnected && !isOwnProfile && (
+                              <div className="flex items-center gap-2">
                                 <button
-                                    onClick={() => {
-                                        onChallengeUser(userAddress, userProfile?.username);
-                                        onClose();
-                                    }}
-                                    className="btn btn-primary flex-1"
+                                  onClick={() => {
+                                    onChallengeUser(userAddress, userProfile?.username);
+                                    onClose();
+                                  }}
+                                  className="btn btn-primary flex-1"
+                                  disabled={!isOnline}
                                 >
-                                    <i className="fas fa-gamepad"></i> Challenge
+                                  <i className="fas fa-gamepad"></i> Challenge
                                 </button>
+                                
+                                {!isOnline && (
+                                  <span className="text-sm text-gray-400">(offline)</span>
+                                )}
+                              </div>
                             )}
+
                         </div>
                         {(isOwner || isModerator) && !isOwnProfile && (
                             <div className="flex flex-row gap-2 justify-center">
