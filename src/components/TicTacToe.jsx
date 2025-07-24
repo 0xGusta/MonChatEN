@@ -46,11 +46,10 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
         if (gameResult) {
             setWinner(gameResult);
             setStatus(gameResult === 'Draw' ? 'draw' : 'win');
-            onGameEnd(sessionId, gameResult === 'Draw' ? 'draw' : 'finished', getPlayerName(gameResult));
         } else {
             setStatus('playing');
         }
-    }, [board, sessionId, onGameEnd]);
+    }, [board, sessionId]);
 
     useEffect(() => {
         const checkOpponentActivity = setInterval(() => {
@@ -65,7 +64,7 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
     }, [lastMoveTimestamp, status, sessionId, onGameEnd]);
 
     const handleClick = (i) => {
-        if (winner || board[i] || !isMyTurn || status === 'opponent_left' || rematchStatus === 'pending') {
+        if (winner || board[i] || !isMyTurn || status === 'opponent_left' || (rematchStatus && rematchStatus.status === 'pending')) {
             return;
         }
 
@@ -80,19 +79,15 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
         <button
             className={`square ${board[i] === 'X' ? 'text-blue-400' : 'text-red-400'}`}
             onClick={() => handleClick(i)}
-            disabled={!isMyTurn || !!board[i] || !!winner || status === 'opponent_left' || rematchStatus === 'pending'}
+            disabled={!isMyTurn || !!board[i] || !!winner || status === 'opponent_left' || (rematchStatus && rematchStatus.status === 'pending')}
         >
             {board[i]}
         </button>
     );
 
     const handleRematchRequest = () => {
-        if (status === 'opponent_left') {
-            onGameEnd(sessionId, 'closed');
-            return;
-        }
-        setRematchStatus('pending');
-        onRematchOffer(sessionId, mySymbol);
+        setRematchStatus({ by: mySymbol, status: 'pending' });
+        onRematchOffer(sessionId, mySymbol, 'pending');
     };
 
     const handleAcceptRematch = () => {
@@ -100,14 +95,14 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
         setXIsNext(true);
         setWinner(null);
         setStatus('playing');
-        setRematchStatus(null);
+        setRematchStatus({ by: mySymbol, status: 'accepted' });
         setLastMoveTimestamp(Date.now());
         onRematchOffer(sessionId, mySymbol, 'accepted');
     };
 
     const handleDeclineRematch = () => {
-        setRematchStatus('declined');
-        onGameEnd(sessionId, 'rematch_declined');
+        setRematchStatus({ by: mySymbol, status: 'declined' });
+        onRematchOffer(sessionId, mySymbol, 'declined');
     };
     
     const handleCloseGame = () => {
@@ -117,17 +112,18 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
     let displayStatus;
     if (winner) {
         if (winner === 'Draw') {
-            displayStatus = 'Empate!';
+            displayStatus = "It's a Draw!";
         } else {
-            displayStatus = `Vencedor: ${getPlayerName(winner)}!`;
+            displayStatus = `Winner: ${getPlayerName(winner)}!`;
         }
     } else if (status === 'opponent_left') {
-        displayStatus = 'O oponente saiu do jogo. Fim de jogo.';
-    } else if (rematchStatus === 'pending') {
-        displayStatus = `Pedido de revanche enviado por ${rematchStatus === 'pending' && players.challenger.address.toLowerCase() === myAddress.toLowerCase() ? getPlayerName(opponentSymbol) : getPlayerName(mySymbol)}...`;
+        displayStatus = 'Opponent left the game. Game over.';
     } else {
-        displayStatus = `Próximo a jogar: ${getPlayerName(xIsNext ? 'X' : 'O')} (${isMyTurn ? 'Sua vez' : 'Vez do oponente'})`;
+        displayStatus = `Next player: ${getPlayerName(xIsNext ? 'X' : 'O')} (${isMyTurn ? 'Your turn' : "Opponent's turn"})`;
     }
+
+    const iAmRematchRequester = rematchStatus && rematchStatus.by === mySymbol;
+    const iAmRematchReceiver = rematchStatus && rematchStatus.by === opponentSymbol;
 
     return (
         <div className="tic-tac-toe p-4 bg-gray-800 rounded-lg text-white">
@@ -151,20 +147,18 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
             </div>
             {(winner || status === 'opponent_left') && (
                 <div className="text-center mt-4">
-                    {rematchStatus === 'pending' && players.challenger.address.toLowerCase() !== myAddress.toLowerCase() ? (
+                    {rematchStatus?.status === 'pending' && iAmRematchReceiver ? (
                         <>
-                            <p className="mb-2">{getPlayerName(opponentSymbol)} quer jogar novamente!</p>
-                            <button onClick={handleAcceptRematch} className="btn btn-primary mr-2">Aceitar Revanche</button>
-                            <button onClick={handleDeclineRematch} className="btn btn-secondary">Recusar</button>
+                            <p className="mb-2">{getPlayerName(opponentSymbol)} wants a rematch!</p>
+                            <button onClick={handleAcceptRematch} className="btn btn-primary mr-2">Accept</button>
+                            <button onClick={handleDeclineRematch} className="btn btn-secondary">Decline</button>
                         </>
-                    ) : rematchStatus === 'pending' ? (
-                        <p>Aguardando {getPlayerName(opponentSymbol)} aceitar a revanche...</p>
-                    ) : rematchStatus === 'declined' ? (
-                        <p>Revanche recusada.</p>
+                    ) : rematchStatus?.status === 'pending' && iAmRematchRequester ? (
+                        <p>Waiting for {getPlayerName(opponentSymbol)} to respond...</p>
                     ) : (
                         <div className="flex gap-2 justify-center">
-                            <button onClick={handleRematchRequest} className="btn btn-primary">Jogar Novamente?</button>
-                            <button onClick={handleCloseGame} className="btn btn-secondary">Fechar</button>
+                            <button onClick={handleRematchRequest} className="btn btn-primary">Play Again?</button>
+                            <button onClick={handleCloseGame} className="btn btn-secondary">Close</button>
                         </div>
                     )}
                 </div>
