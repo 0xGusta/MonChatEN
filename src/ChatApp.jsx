@@ -491,6 +491,13 @@ export default function ChatApp() {
                         });
                         setGameSessionId(c.id);
                         showPopup(`Challenge accepted by ${c.opponent.username}! Game starting...`, 'success');
+                        setChallenges(prev => {
+                            const newChallenges = { ...prev };
+                            if (newChallenges[c.id]) {
+                                newChallenges[c.id] = { ...newChallenges[c.id], status: 'active' };
+                            }
+                            return newChallenges;
+                        
                     } else if (c.status === 'declined') {
                         showPopup(`${c.opponent.username} declined your challenge.`, 'info');
                         setChallenges(prev => {
