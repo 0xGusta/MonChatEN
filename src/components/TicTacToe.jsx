@@ -18,6 +18,7 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
     });
 
     const [timeLeft, setTimeLeft] = useState(30);
+    const [rematchBlocked, setRematchBlocked] = useState(false);
     const timerRef = useRef(null);
 
     const isMyTurn = (xIsNext && players?.challenger?.address.toLowerCase() === myAddress.toLowerCase()) ||
@@ -117,7 +118,7 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
     );
 
     const handleRematchRequest = () => {
-        if (!players || opponentClosed) return;
+        if (!players || opponentClosed || rematchBlocked) return;
         setRematchStatus({ by: mySymbol, status: 'pending' });
         onRematchOffer(sessionId, mySymbol, 'pending');
     };
@@ -128,6 +129,7 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
         setWinner(null);
         setStatus('playing');
         setRematchStatus(null);
+        setRematchBlocked(false);
         const now = getSyncedNow();
         setLastMoveX(now);
         setLastMoveO(now);
@@ -142,6 +144,9 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
     const handleDeclineRematch = () => {
         onRematchOffer(sessionId, mySymbol, 'declined');
         setRematchStatus(null);
+        if (iAmRematchReceiver) {
+            setRematchBlocked(true);
+        }
     };
 
     const handleCloseGame = (e) => {
@@ -176,6 +181,7 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
         <div className="tic-tac-toe p-4 bg-gray-800 rounded-lg text-white">
             <div className="flex justify-between items-center w-full mb-2">
                 <span className="text-lg font-bold">You are: {mySymbol}</span>
+                <button className="close-button" onClick={handleCloseGame}>×</button>
                 {isMyTurn && !winner && status === 'playing' && !opponentClosed && <span className="text-lg font-bold">Time left: {timeLeft}s</span>}
             </div>
             <div className="status text-center text-lg font-bold mb-4">{displayStatus}</div>
@@ -203,9 +209,17 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
                         </>
                     ) : rematchStatus?.status === 'pending' && iAmRematchRequester ? (
                         <p>Waiting for {getPlayerName(opponentSymbol)} to respond...</p>
+                    ) : rematchStatus?.status === 'declined' && iAmRematchRequester ? (
+                        <p>{getPlayerName(opponentSymbol)} recusou o rematch. Você não pode enviar novas solicitações.</p>
                     ) : (
                         <div className="flex gap-2 justify-center">
-                            <button onClick={handleRematchRequest} className="btn btn-primary">Play Again?</button>
+                            <button
+                                onClick={handleRematchRequest}
+                                className="btn btn-primary"
+                                disabled={rematchBlocked}
+                            >
+                                Play Again?
+                            </button>
                             <button onClick={handleCloseGame} className="btn btn-secondary">Close</button>
                         </div>
                     )}
