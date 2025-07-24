@@ -4,14 +4,25 @@ export default function ChallengeModal({ isOpen, challenge, onAccept, onDecline 
     const [timeLeft, setTimeLeft] = useState(10);
     const timerRef = useRef(null);
 
+    const onDeclineRef = useRef(onDecline);
     useEffect(() => {
+        onDeclineRef.current = onDecline;
+    }, [onDecline]);
+
+    useEffect(() => {
+
         if (isOpen && challenge) {
+
+            clearInterval(timerRef.current);
+
             setTimeLeft(10);
+
             timerRef.current = setInterval(() => {
                 setTimeLeft(prevTime => {
                     if (prevTime <= 1) {
                         clearInterval(timerRef.current);
-                        onDecline(challenge.id);
+
+                        onDeclineRef.current(challenge.id);
                         return 0;
                     }
                     return prevTime - 1;
@@ -21,8 +32,9 @@ export default function ChallengeModal({ isOpen, challenge, onAccept, onDecline 
             clearInterval(timerRef.current);
         }
 
+       
         return () => clearInterval(timerRef.current);
-    }, [isOpen, challenge?.id, onDecline]);
+    }, [isOpen, challenge?.id]);
 
     if (!isOpen || !challenge) {
         return null;
