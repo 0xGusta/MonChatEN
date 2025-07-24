@@ -970,3 +970,38 @@ a:hover {
     color: #6B7280;
     margin-right: 1rem;
 }
+
+/* Tetris styles */
+.tetris-container {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.game-area canvas {
+    border: 3px solid #8B5CF6;
+    background-color: #0F0F23;
+}
+
+.opponent-area canvas {
+    border: 3px solid #4B5563;
+    background-color: #1A1A2E;
+}
+
+.game-info {
+    color: white;
+    font-size: 1.2rem;
+    margin-top: 10px;
+}
+
+.game-over-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #EF4444;
+    font-size: 2rem;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px #000;
+}
