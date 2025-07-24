@@ -10,18 +10,13 @@ export default function ChallengeModal({ isOpen, challenge, onAccept, onDecline 
     }, [onDecline]);
 
     useEffect(() => {
-
         if (isOpen && challenge) {
-
             clearInterval(timerRef.current);
-
             setTimeLeft(10);
-
             timerRef.current = setInterval(() => {
                 setTimeLeft(prevTime => {
                     if (prevTime <= 1) {
                         clearInterval(timerRef.current);
-
                         onDeclineRef.current(challenge.id);
                         return 0;
                     }
@@ -32,13 +27,14 @@ export default function ChallengeModal({ isOpen, challenge, onAccept, onDecline 
             clearInterval(timerRef.current);
         }
 
-       
         return () => clearInterval(timerRef.current);
     }, [isOpen, challenge?.id]);
 
     if (!isOpen || !challenge) {
         return null;
     }
+    
+    const gameName = challenge.game === 'tictactoe' ? 'Tic-Tac-Toe' : 'Tetris';
 
     return (
         <div 
@@ -50,7 +46,7 @@ export default function ChallengeModal({ isOpen, challenge, onAccept, onDecline 
         >
             <h2 className="text-xl font-bold mb-2">Game Challenge! ⚔️</h2>
             <p className="text-gray-300 mb-4">
-                <span className="font-semibold">{challenge.challenger.username}</span> challenged you to a match!
+                <span className="font-semibold">{challenge.challenger.username}</span> challenged you to a match of <span className="font-semibold">{gameName}</span>!
             </p>
             
             <div className="w-full bg-gray-700 rounded-full h-1.5 mb-4">
@@ -62,7 +58,6 @@ export default function ChallengeModal({ isOpen, challenge, onAccept, onDecline 
             </p>
 
             <div className="flex gap-2 justify-end">
-
                 <button onClick={() => onDecline(challenge.id)} className="btn btn-secondary">
                     Decline
                 </button>
