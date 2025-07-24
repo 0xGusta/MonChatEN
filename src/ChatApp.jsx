@@ -1423,24 +1423,33 @@ export default function ChatApp() {
         setActiveGame(null);
         setGamePlayers(null);
         setGameSessionId(null);
-        setChallenges(prev => {
-            const newState = { ...prev };
-            delete newState[sessionId];
-            return newState;
-        });
+        
+        const currentChallenge = challenges[sessionId];
+        if (currentChallenge && currentChallenge.rematch?.status === 'declined') {
+
+        } else {
+            setChallenges(prev => {
+                const newState = { ...prev };
+                delete newState[sessionId];
+                return newState;
+            });
+        }
     
         if (result === 'closed') {
             showPopup("Game closed.", "info");
         } else if (result === 'opponent_left') {
             showPopup("Opponent left the game. Game over.", "warning");
-        } else if (result === 'draw') {
-            showPopup("Game ended in a draw!", "info");
-        } else if (result === 'finished') {
-            showPopup(`Game finished! Winner: ${winnerName}`, "success");
         } else if (result === 'rematch_declined') {
             showPopup("Rematch declined by opponent.", "info");
+            setChallenges(prev => {
+                const newState = { ...prev };
+                if (newState[sessionId]) {
+                    delete newState[sessionId].rematch;
+                }
+                return newState;
+            });
         }
-    }, [setChallenges, setActiveGame, setGamePlayers, setGameSessionId, showPopup]);
+    }, [setChallenges, setActiveGame, setGamePlayers, setGameSessionId, showPopup, challenges]);
     
     const handleRematchOffer = useCallback((sessionId, symbol, status = 'pending') => {
         setChallenges(prev => ({
