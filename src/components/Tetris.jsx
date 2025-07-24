@@ -163,8 +163,10 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
                 
                 const garbageToSend = Math.max(0, linesCleared - 1);
                 let newOpponentBoard = prev[opponentSymbol].board;
+                
+                const isOpponentTopRowClear = prev[opponentSymbol].board[0].every(cell => cell === 0);
 
-                if (garbageToSend > 0 && !prev[opponentSymbol].gameOver) {
+                if (garbageToSend > 0 && !prev[opponentSymbol].gameOver && isOpponentTopRowClear) {
                     newOpponentBoard = prev[opponentSymbol].board.slice();
                     for (let i = 0; i < garbageToSend; i++) {
                         newOpponentBoard.shift();
@@ -233,8 +235,8 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
             }
         };
 
-        drawBoard(gameAreaRef, gameState[mySymbol].board, player);
-        drawBoard(opponentAreaRef, gameState[opponentSymbol].board);
+        drawBoard(gameAreaRef.current, gameState[mySymbol].board, player);
+        drawBoard(opponentAreaRef.current, gameState[opponentSymbol].board);
     }, [gameState, player, mySymbol, opponentSymbol]);
 
     useEffect(() => {
