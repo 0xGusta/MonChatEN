@@ -7,26 +7,12 @@ const ROWS = 20;
 const BLOCK_SIZE = 20;
 
 const COLORS = [
-    null,
-    '#FF0D72',
-    '#0DC2FF',
-    '#0DFF72',
-    '#F538FF',
-    '#FF8E0D',
-    '#FFE138',
-    '#3877FF',
-    '#6B7280',
+    null, '#FF0D72', '#0DC2FF', '#0DFF72', '#F538FF', '#FF8E0D', '#FFE138', '#3877FF', '#6B7280',
 ];
 
 const SHAPES = [
-    null,
-    [[1, 1, 1], [0, 1, 0]],
-    [[2, 2, 2, 2]],
-    [[0, 3, 3], [3, 3, 0]],
-    [[4, 4, 0], [0, 4, 4]],
-    [[5, 0, 0], [5, 5, 5]],
-    [[0, 0, 6], [6, 6, 6]],
-    [[7, 7], [7, 7]],
+    null, [[1, 1, 1], [0, 1, 0]], [[2, 2, 2, 2]], [[0, 3, 3], [3, 3, 0]], [[4, 4, 0], [0, 4, 4]],
+    [[5, 0, 0], [5, 5, 5]], [[0, 0, 6], [6, 6, 6]], [[7, 7], [7, 7]],
 ];
 
 const createEmptyBoard = () => Array.from({ length: ROWS }, () => Array(COLS).fill(0));
@@ -57,18 +43,20 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
     const lastTimeRef = useRef(0);
     const dropCounterRef = useRef(0);
 
+    // CORREÇÃO: Função de colisão mais robusta para evitar falhas.
     const checkCollision = useCallback((playerPiece, board) => {
+        // Garante que a peça e o tabuleiro são válidos antes de verificar.
+        if (!playerPiece.shape || !board) {
+            return true; // Retorna true para previnir movimentos se o estado estiver inválido.
+        }
+
         const { shape, pos } = playerPiece;
         for (let y = 0; y < shape.length; y += 1) {
             for (let x = 0; x < shape[y].length; x += 1) {
                 if (shape[y][x] !== 0) {
                     const boardY = y + pos.y;
                     const boardX = x + pos.x;
-                    if (
-                        !board[boardY] ||
-                        board[boardY][boardX] === undefined ||
-                        board[boardY][boardX] !== 0
-                    ) {
+                    if (!board[boardY] || board[boardY][boardX] === undefined || board[boardY][boardX] !== 0) {
                         return true;
                     }
                 }
@@ -81,12 +69,14 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
         const sequence = gameState.pieceSequence;
         const nextShapeIndex = sequence[pieceIndex % sequence.length];
         const newShape = SHAPES[nextShapeIndex];
-        setPlayer({
-            pos: { x: Math.floor(COLS / 2) - Math.floor(newShape[0].length / 2), y: 0 },
-            shape: newShape,
-            collided: false,
-        });
-        setPieceIndex(prev => prev + 1);
+        if (newShape) {
+            setPlayer({
+                pos: { x: Math.floor(COLS / 2) - Math.floor(newShape[0].length / 2), y: 0 },
+                shape: newShape,
+                collided: false,
+            });
+            setPieceIndex(prev => prev + 1);
+        }
     }, [pieceIndex, gameState.pieceSequence]);
 
     useEffect(() => {
@@ -118,22 +108,18 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
     const playerRotate = useCallback((dir) => {
         if (!player.shape || gameState[mySymbol].gameOver) return;
         const clonedPlayer = JSON.parse(JSON.stringify(player));
-
         const rotate = (matrix) => {
             const rotated = matrix.map((_, index) => matrix.map(col => col[index]));
             if (dir > 0) return rotated.map(row => row.reverse());
             return rotated.reverse();
         };
         clonedPlayer.shape = rotate(clonedPlayer.shape);
-
         let offset = 1;
         const board = gameState[mySymbol].board;
         while (checkCollision(clonedPlayer, board)) {
             clonedPlayer.pos.x += offset;
             offset = -(offset + (offset > 0 ? 1 : -1));
-            if (Math.abs(offset) > clonedPlayer.shape[0].length) {
-                return;
-            }
+            if (Math.abs(offset) > clonedPlayer.shape[0].length) return;
         }
         setPlayer(clonedPlayer);
     }, [player, gameState, mySymbol, checkCollision]);
@@ -144,12 +130,9 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
                 const newMyBoard = prev[mySymbol].board.map(row => [...row]);
                 player.shape.forEach((row, y) => {
                     row.forEach((value, x) => {
-                        if (value !== 0) {
-                            newMyBoard[y + player.pos.y][x + player.pos.x] = value;
-                        }
+                        if (value !== 0) newMyBoard[y + player.pos.y][x + player.pos.x] = value;
                     });
                 });
-
                 let linesCleared = 0;
                 const sweptBoard = newMyBoard.reduce((acc, row) => {
                     if (row.every(cell => cell !== 0)) {
@@ -160,12 +143,9 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
                     }
                     return acc;
                 }, []);
-
                 const garbageToSend = Math.max(0, linesCleared - 1);
                 let newOpponentBoard = prev[opponentSymbol].board;
-
-                const isOpponentTopRowClear = prev[opponentSymbol].board[0].every(cell => cell === 0);
-
+                const isOpponentTopRowClear = prev[opponentSymbol].board[0]?.every(cell => cell === 0);
                 if (garbageToSend > 0 && !prev[opponentSymbol].gameOver && isOpponentTopRowClear) {
                     newOpponentBoard = prev[opponentSymbol].board.slice();
                     for (let i = 0; i < garbageToSend; i++) {
@@ -175,21 +155,11 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
                         newOpponentBoard.push(garbageRow);
                     }
                 }
-
-                const newState = {
+                return {
                     ...prev,
-                    [mySymbol]: {
-                        ...prev[mySymbol],
-                        board: sweptBoard,
-                        score: prev[mySymbol].score + (linesCleared * 10),
-                        lines: prev[mySymbol].lines + linesCleared,
-                    },
-                    [opponentSymbol]: {
-                        ...prev[opponentSymbol],
-                        board: newOpponentBoard
-                    }
+                    [mySymbol]: { ...prev[mySymbol], board: sweptBoard, score: prev[mySymbol].score + (linesCleared * 10) },
+                    [opponentSymbol]: { ...prev[opponentSymbol], board: newOpponentBoard }
                 };
-                return newState;
             });
             resetPlayer();
         }
@@ -199,21 +169,27 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
         const deltaTime = time - lastTimeRef.current;
         lastTimeRef.current = time;
         dropCounterRef.current += deltaTime;
-
         if (dropCounterRef.current > dropTime) {
             dropPlayer();
             dropCounterRef.current = 0;
         }
-
         requestRef.current = requestAnimationFrame(animate);
     }, [dropPlayer, dropTime]);
 
-    const draw = useCallback(() => {
-        const drawBoard = (canvasRef, board, currentPlayer = null) => {
-            if (!canvasRef.current) return;
-            const ctx = canvasRef.current.getContext('2d');
-            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    // CORREÇÃO: Lógica de desenho simplificada para ser mais confiável.
+    useEffect(() => {
+        if (gameState[mySymbol].gameOver || gameState[opponentSymbol].gameOver) {
+            cancelAnimationFrame(requestRef.current);
+            if (onGameEnd) onGameEnd();
+            return;
+        }
 
+        const myCtx = gameAreaRef.current?.getContext('2d');
+        const opponentCtx = opponentAreaRef.current?.getContext('2d');
+        if (!myCtx || !opponentCtx) return;
+
+        const drawBoard = (ctx, board, currentPlayer = null) => {
+            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
             board.forEach((row, y) => {
                 row.forEach((value, x) => {
                     if (value !== 0) {
@@ -222,8 +198,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
                     }
                 });
             });
-
-            if (currentPlayer && currentPlayer.shape) {
+            if (currentPlayer?.shape) {
                 currentPlayer.shape.forEach((row, y) => {
                     row.forEach((value, x) => {
                         if (value !== 0) {
@@ -235,18 +210,10 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
             }
         };
 
-        drawBoard(gameAreaRef.current, gameState[mySymbol].board, player);
-        drawBoard(opponentAreaRef.current, gameState[opponentSymbol].board);
-    }, [gameState, player, mySymbol, opponentSymbol]);
+        drawBoard(myCtx, gameState[mySymbol].board, player);
+        drawBoard(opponentCtx, gameState[opponentSymbol].board);
 
-    useEffect(() => {
-        if (gameState[mySymbol].gameOver || gameState[opponentSymbol].gameOver) {
-            cancelAnimationFrame(requestRef.current);
-            if (onGameEnd) onGameEnd();
-            return;
-        }
-        draw();
-    }, [gameState, player, draw, mySymbol, opponentSymbol, onGameEnd]);
+    }, [gameState, player, mySymbol, opponentSymbol, onGameEnd]);
 
     useEffect(() => {
         requestRef.current = requestAnimationFrame(animate);
@@ -257,9 +224,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
         if (gameState[mySymbol].gameOver) return;
         const relevantKeys = ['a', 'ArrowLeft', 'd', 'ArrowRight', 's', 'ArrowDown', 'q', 'ArrowUp', 'e'];
         if (!relevantKeys.includes(e.key)) return;
-
         e.preventDefault();
-
         if (e.key === 'a' || e.key === 'ArrowLeft') movePlayer(-1);
         else if (e.key === 'd' || e.key === 'ArrowRight') movePlayer(1);
         else if (e.key === 's' || e.key === 'ArrowDown') dropPlayer();
