@@ -501,11 +501,17 @@ export default function ChatApp() {
                             
                     } else if (c.status === 'declined') {
                         showPopup(`${c.opponent.username} declined your challenge.`, 'info');
-                        setChallenges(prev => {
-                            const newState = { ...prev };
-                            delete newState[c.id];
-                            return newState;
-                        });
+
+                        setTimeout(() => {
+                            setChallenges(prev => {
+                                const newState = { ...prev };
+                                if (newState[c.id]) {
+                                    delete newState[c.id];
+                                }
+                                return newState;
+                            });
+                        }, 500);
+                    }
                     } else if (c.rematch?.status === 'pending' && !incomingChallenge) {
                     setIncomingChallenge({ ...c, isRematch: true });
                 } else if (c.rematch?.status === 'declined') {
@@ -1430,13 +1436,17 @@ export default function ChatApp() {
     };
     
     const handleDeclineChallenge = useCallback((challengeId) => {
-        setChallenges(prev => {
-            const newState = { ...prev };
-            delete newState[challengeId];
-            return newState;
-        });
+
         setIncomingChallenge(null);
         showPopup("Challenge declined.", "info");
+    
+        setChallenges(prev => {
+            if (!prev[challengeId]) return prev;
+            return {
+                ...prev,
+                [challengeId]: { ...prev[challengeId], status: 'declined' }
+            };
+        });
     }, [setChallenges, showPopup]);
     
     const handleGameEnd = useCallback((sessionId, result) => {
