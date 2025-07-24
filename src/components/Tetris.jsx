@@ -238,20 +238,42 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
     }, [handleKeyDown]);
 
     return (
-        <div className="flex flex-row justify-center items-center gap-4">
-            <div className="text-center">
-                <h3 className="font-bold">{players.challenger.username} (You)</h3>
-                <canvas ref={gameAreaRef} width={COLS * BLOCK_SIZE} height={ROWS * BLOCK_SIZE} className="border-2 border-monad bg-darkCard" />
-                <div className="text-white">Score: {gameState[mySymbol].score}</div>
-                {gameState[mySymbol].gameOver && <div className="text-red-500 font-bold text-2xl">GAME OVER</div>}
-            </div>
-            <div className="text-center">
-                <h3 className="font-bold">{players.opponent.username} (Opponent)</h3>
-                <canvas ref={opponentAreaRef} width={COLS * BLOCK_SIZE} height={ROWS * BLOCK_SIZE} className="border-2 border-gray-600 bg-darkCard" />
-                <div className="text-white">Score: {gameState[opponentSymbol].score}</div>
-                {gameState[opponentSymbol].gameOver && <div className="text-red-500 font-bold text-2xl">GAME OVER</div>}
-            </div>
-            <GameControls onMove={movePlayer} onRotate={playerRotate} onDrop={dropPlayer} />
-        </div>
+        <div className="flex flex-row flex-wrap justify-center items-start gap-4 w-full px-2">
+  <div className="text-center flex flex-col items-center">
+    <h3 className="font-bold text-sm sm:text-base">{players.challenger.username} (You)</h3>
+    <div className="w-[40vw] max-w-[200px]">
+      <canvas
+        ref={gameAreaRef}
+        width={COLS * BLOCK_SIZE}
+        height={ROWS * BLOCK_SIZE}
+        className="w-full h-auto border-2 border-monad bg-darkCard"
+      />
+    </div>
+    <div className="text-white text-sm">Score: {gameState[mySymbol].score}</div>
+    {gameState[mySymbol].gameOver && (
+      <div className="text-red-500 font-bold text-xl sm:text-2xl">GAME OVER</div>
+    )}
+  </div>
+
+  <div className="text-center flex flex-col items-center">
+    <h3 className="font-bold text-sm sm:text-base">{players.opponent.username} (Opponent)</h3>
+    <div className="w-[40vw] max-w-[200px]">
+      <canvas
+        ref={opponentAreaRef}
+        width={COLS * BLOCK_SIZE}
+        height={ROWS * BLOCK_SIZE}
+        className="w-full h-auto border-2 border-gray-600 bg-darkCard"
+      />
+    </div>
+    <div className="text-white text-sm">Score: {gameState[opponentSymbol].score}</div>
+    {gameState[opponentSymbol].gameOver && (
+      <div className="text-red-500 font-bold text-xl sm:text-2xl">GAME OVER</div>
+    )}
+  </div>
+
+  <div className="w-full md:w-auto mt-4 md:mt-0">
+    <GameControls onMove={movePlayer} onRotate={playerRotate} onDrop={dropPlayer} />
+  </div>
+</div>
     );
 }
