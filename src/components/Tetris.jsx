@@ -15,18 +15,18 @@ const COLORS = [
     '#FF8E0D',
     '#FFE138',
     '#3877FF',
-    '#6B7280', 
+    '#6B7280',
 ];
 
 const SHAPES = [
     null,
-    [[1, 1, 1], [0, 1, 0]],   
-    [[2, 2, 2, 2]],          
-    [[0, 3, 3], [3, 3, 0]],   
-    [[4, 4, 0], [0, 4, 4]],   
-    [[5, 0, 0], [5, 5, 5]],   
-    [[0, 0, 6], [6, 6, 6]],   
-    [[7, 7], [7, 7]],         
+    [[1, 1, 1], [0, 1, 0]],
+    [[2, 2, 2, 2]],
+    [[0, 3, 3], [3, 3, 0]],
+    [[4, 4, 0], [0, 4, 4]],
+    [[5, 0, 0], [5, 5, 5]],
+    [[0, 0, 6], [6, 6, 6]],
+    [[7, 7], [7, 7]],
 ];
 
 const createEmptyBoard = () => Array.from({ length: ROWS }, () => Array(COLS).fill(0));
@@ -47,7 +47,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
         shape: null,
         collided: false,
     });
-    
+
     const [pieceIndex, setPieceIndex] = useState(0);
     const dropTime = 1000;
 
@@ -94,7 +94,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
     }, []);
 
     const movePlayer = useCallback((dir) => {
-        if (gameState[mySymbol].gameOver) return;
+        if (!player.shape || gameState[mySymbol].gameOver) return;
         const board = gameState[mySymbol].board;
         if (!checkCollision({ ...player, pos: { x: player.pos.x + dir, y: player.pos.y } }, board)) {
             setPlayer(prev => ({ ...prev, pos: { x: prev.pos.x + dir, y: prev.pos.y } }));
@@ -102,23 +102,23 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
     }, [player, gameState, mySymbol, checkCollision]);
 
     const dropPlayer = useCallback(() => {
-        if (gameState[mySymbol].gameOver) return;
+        if (!player.shape || gameState[mySymbol].gameOver) return;
         const board = gameState[mySymbol].board;
         if (!checkCollision({ ...player, pos: { x: player.pos.x, y: player.pos.y + 1 } }, board)) {
             setPlayer(prev => ({ ...prev, pos: { x: prev.pos.x, y: prev.pos.y + 1 } }));
         } else {
             if (player.pos.y < 1) {
-                setGameState(prev => ({...prev, [mySymbol]: {...prev[mySymbol], gameOver: true}}));
+                setGameState(prev => ({ ...prev, [mySymbol]: { ...prev[mySymbol], gameOver: true } }));
                 return;
             }
-            setPlayer(prev => ({...prev, collided: true}));
+            setPlayer(prev => ({ ...prev, collided: true }));
         }
     }, [player, gameState, mySymbol, checkCollision, setGameState]);
-    
+
     const playerRotate = useCallback((dir) => {
-        if (gameState[mySymbol].gameOver) return;
+        if (!player.shape || gameState[mySymbol].gameOver) return;
         const clonedPlayer = JSON.parse(JSON.stringify(player));
-        
+
         const rotate = (matrix) => {
             const rotated = matrix.map((_, index) => matrix.map(col => col[index]));
             if (dir > 0) return rotated.map(row => row.reverse());
@@ -160,10 +160,10 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
                     }
                     return acc;
                 }, []);
-                
+
                 const garbageToSend = Math.max(0, linesCleared - 1);
                 let newOpponentBoard = prev[opponentSymbol].board;
-                
+
                 const isOpponentTopRowClear = prev[opponentSymbol].board[0].every(cell => cell === 0);
 
                 if (garbageToSend > 0 && !prev[opponentSymbol].gameOver && isOpponentTopRowClear) {
@@ -242,12 +242,12 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
     useEffect(() => {
         if (gameState[mySymbol].gameOver || gameState[opponentSymbol].gameOver) {
             cancelAnimationFrame(requestRef.current);
-            if(onGameEnd) onGameEnd();
+            if (onGameEnd) onGameEnd();
             return;
         }
         draw();
     }, [gameState, player, draw, mySymbol, opponentSymbol, onGameEnd]);
-    
+
     useEffect(() => {
         requestRef.current = requestAnimationFrame(animate);
         return () => cancelAnimationFrame(requestRef.current);
@@ -257,7 +257,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
         if (gameState[mySymbol].gameOver) return;
         const relevantKeys = ['a', 'ArrowLeft', 'd', 'ArrowRight', 's', 'ArrowDown', 'q', 'ArrowUp', 'e'];
         if (!relevantKeys.includes(e.key)) return;
-        
+
         e.preventDefault();
 
         if (e.key === 'a' || e.key === 'ArrowLeft') movePlayer(-1);
