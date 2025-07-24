@@ -5,8 +5,7 @@ export default function GameModal({ isOpen, onClose, gameType, players, sessionI
     if (!isOpen) return null;
 
     const handleCloseGame = () => {
-        onGameEnd(sessionId, 'closed');
-        onClose();
+            onClose();
     };
 
     const handleRematch = () => {
