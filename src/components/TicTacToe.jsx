@@ -111,6 +111,12 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
     );
 
     const handleRematchRequest = () => {
+
+        if (!players) {
+            console.warn("Rematch requested but player data is missing. Aborting.");
+            return;
+        }
+    
         setRematchStatus({ by: mySymbol, status: 'pending' });
         onRematchOffer(sessionId, mySymbol, 'pending');
     };
