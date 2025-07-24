@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useStateTogether } from 'react-together';
-import { getSyncedNow } from '../hooks/usePresence.js';
+import { getSyncedNow } from '../utils/timeSync.js';
 
 const initialBoard = Array(9).fill(null);
 
