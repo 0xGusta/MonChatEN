@@ -471,16 +471,16 @@ export default function ChatApp() {
         }
     
         Object.values(challenges).forEach(c => {
-            if (c.challenger.address.toLowerCase() === address?.toLowerCase()) {
-                if (c.status === 'accepted' && !activeGame && c.gameSessionId === c.id) {
-                    setActiveGame(c.game);
-                    setGamePlayers({
-                        challenger: c.challenger,
-                        opponent: c.opponent
-                    });
-                    setGameSessionId(c.id);
-                    showPopup(`Challenge accepted by ${c.opponent.username}! Game starting...`, 'success');
-                } else if (c.status === 'declined') {
+        if (c.challenger.address.toLowerCase() === address?.toLowerCase()) {
+            if (c.status === 'accepted' && !activeGame) {
+                setActiveGame(c.game);
+                setGamePlayers({
+                    challenger: c.challenger,
+                    opponent: c.opponent
+                });
+                setGameSessionId(c.id);
+                showPopup(`Challenge accepted by ${c.opponent.username}! Game starting...`, 'success');
+            } else if (c.status === 'declined') {
                     showPopup(`${c.opponent.username} declined your challenge.`, 'info');
                     setChallenges(prev => {
                         const newState = { ...prev };
