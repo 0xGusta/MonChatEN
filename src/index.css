@@ -918,6 +918,54 @@ a:hover {
     background-color: rgba(245, 158, 11, 0.1);
 }
 
+/* Tic Tac Toe styles */
+.tic-tac-toe {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.board-row {
+    display: flex;
+}
+
+.square {
+    background: #2d3748;
+    border: 1px solid #4a5568;
+    float: left;
+    font-size: 48px;
+    font-weight: bold;
+    line-height: 80px;
+    height: 80px;
+    margin-right: -1px;
+    margin-top: -1px;
+    padding: 0;
+    text-align: center;
+    width: 80px;
+    color: #fff;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.square:focus {
+    outline: none;
+}
+
+.square:hover:not(:disabled) {
+    background: #4a5568;
+}
+
+.square:disabled {
+    cursor: default;
+}
+
+.text-blue-400 {
+    color: #60a5fa;
+}
+
+.text-red-400 {
+    color: #f87171;
+}
 .log-timestamp {
     color: #6B7280;
     margin-right: 1rem;
