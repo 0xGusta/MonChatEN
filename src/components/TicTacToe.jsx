@@ -4,15 +4,15 @@ import { useStateTogether } from 'react-together';
 const initialBoard = Array(9).fill(null);
 
 export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, onRematchOffer }) {
-
     const [board, setBoard] = useStateTogether(`tictactoe-board-${sessionId}`, initialBoard);
     const [xIsNext, setXIsNext] = useStateTogether(`tictactoe-xIsNext-${sessionId}`, true);
     const [status, setStatus] = useStateTogether(`tictactoe-status-${sessionId}`, 'playing');
     const [winner, setWinner] = useStateTogether(`tictactoe-winner-${sessionId}`, null);
     const [rematchStatus, setRematchStatus] = useStateTogether(`tictactoe-rematch-${sessionId}`, null);
-    const [lastMoveTimestamp, setLastMoveTimestamp] = useStateTogether(`tictactoe-lastMove-${sessionId}`, Date.now());
-    const [opponentLeft, setOpponentLeft] = useStateTogether(`tictactoe-opponentLeft-${sessionId}`, false);
+    const [lastMoveX, setLastMoveX] = useStateTogether(`tictactoe-lastMoveX-${sessionId}`, Date.now());
+    const [lastMoveO, setLastMoveO] = useStateTogether(`tictactoe-lastMoveO-${sessionId}`, Date.now());
 
+    const [opponentLeftLocal, setOpponentLeftLocal] = useState(false);
     const [timeLeft, setTimeLeft] = useState(30);
     const timerRef = useRef(null);
 
@@ -27,9 +27,10 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
         if (symbol === 'O') return players.opponent?.username || 'Player O';
         return '';
     };
-    
+
     useEffect(() => {
-        if (isMyTurn && !winner && status === 'playing' && !opponentLeft) {
+        clearInterval(timerRef.current);
+        if (isMyTurn && !winner && status === 'playing' && !opponentLeftLocal) {
             setTimeLeft(30);
             timerRef.current = setInterval(() => {
                 setTimeLeft(prev => {
@@ -46,11 +47,10 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
                 });
             }, 1000);
         } else {
-            clearInterval(timerRef.current);
             setTimeLeft(30);
         }
         return () => clearInterval(timerRef.current);
-    }, [isMyTurn, winner, status, board, opponentLeft]);
+    }, [isMyTurn, winner, status, board, opponentLeftLocal]);
 
     useEffect(() => {
         const calculateWinner = (squares) => {
@@ -77,50 +77,52 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
     }, [board, winner]);
 
     useEffect(() => {
-        const checkOpponentActivity = setInterval(() => {
-            if (status === 'playing' && !winner && Date.now() - lastMoveTimestamp > 35000) {  
-                setOpponentLeft(true);
+        const interval = setInterval(() => {
+            if (status !== 'playing' || winner) return;
+            const opponentLast = mySymbol === 'X' ? lastMoveO : lastMoveX;
+            if (Date.now() - opponentLast > 35000) {
+                setOpponentLeftLocal(true);
             }
         }, 5000);
-
-        return () => clearInterval(checkOpponentActivity);
-    }, [lastMoveTimestamp, status, winner]);
+        return () => clearInterval(interval);
+    }, [lastMoveX, lastMoveO, winner, status]);
 
     const handleClick = (i) => {
-        if (winner || board[i] || !isMyTurn || opponentLeft || (rematchStatus && rematchStatus.status === 'pending')) {
-            return;
-        }
+        if (winner || board[i] || !isMyTurn || opponentLeftLocal || (rematchStatus && rematchStatus.status === 'pending')) return;
         const newBoard = board.slice();
         newBoard[i] = xIsNext ? 'X' : 'O';
         setBoard(newBoard);
         setXIsNext(!xIsNext);
-        setLastMoveTimestamp(Date.now());
+        if (mySymbol === 'X') setLastMoveX(Date.now());
+        else setLastMoveO(Date.now());
     };
 
     const renderSquare = (i) => (
         <button
             className={`square ${board[i] === 'X' ? 'text-blue-400' : 'text-red-400'}`}
             onClick={() => handleClick(i)}
-            disabled={!isMyTurn || !!board[i] || !!winner || opponentLeft || (rematchStatus && rematchStatus.status === 'pending')}
+            disabled={!isMyTurn || !!board[i] || !!winner || opponentLeftLocal || (rematchStatus && rematchStatus.status === 'pending')}
         >
             {board[i]}
         </button>
     );
 
     const handleRematchRequest = () => {
-        if (!players || opponentLeft) return;
+        if (!players || opponentLeftLocal) return;
         setRematchStatus({ by: mySymbol, status: 'pending' });
         onRematchOffer(sessionId, mySymbol, 'pending');
     };
 
     const handleAcceptRematch = () => {
-        setOpponentLeft(false);
         setBoard(initialBoard);
         setXIsNext(true);
         setWinner(null);
         setStatus('playing');
         setRematchStatus(null);
-        setLastMoveTimestamp(Date.now());
+        setOpponentLeftLocal(false);
+        const now = Date.now();
+        setLastMoveX(now);
+        setLastMoveO(now);
         onRematchOffer(sessionId, mySymbol, 'accepted');
     };
 
@@ -131,19 +133,19 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
 
     const handleCloseGame = (e) => {
         if (e) e.stopPropagation();
-        setOpponentLeft(true);
+        setOpponentLeftLocal(true);
         onGameEnd(sessionId, 'closed');
     };
 
     let displayStatus;
-    if (opponentLeft) {
+    if (opponentLeftLocal) {
         displayStatus = 'Opponent left the game. You can close now.';
     } else if (winner) {
         displayStatus = winner === 'Draw' ? "It's a Draw!" : `Winner: ${getPlayerName(winner)}!`;
     } else {
         displayStatus = `Next player: ${getPlayerName(xIsNext ? 'X' : 'O')} (${isMyTurn ? 'Your turn' : "Opponent's turn"})`;
     }
-    
+
     const iAmRematchRequester = rematchStatus && rematchStatus.by === mySymbol;
     const iAmRematchReceiver = rematchStatus && rematchStatus.by === opponentSymbol;
 
@@ -151,11 +153,9 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
         <div className="tic-tac-toe p-4 bg-gray-800 rounded-lg text-white">
             <div className="flex justify-between items-center w-full mb-2">
                 <span className="text-lg font-bold">You are: {mySymbol}</span>
-                {isMyTurn && !winner && status === 'playing' && !opponentLeft && <span className="text-lg font-bold">Time left: {timeLeft}s</span>}
+                {isMyTurn && !winner && status === 'playing' && !opponentLeftLocal && <span className="text-lg font-bold">Time left: {timeLeft}s</span>}
             </div>
-            <div className="status text-center text-lg font-bold mb-4">
-                {displayStatus}
-            </div>
+            <div className="status text-center text-lg font-bold mb-4">{displayStatus}</div>
             <div className="board-container">
                 <div className="board-row">
                     {renderSquare(0)}{renderSquare(1)}{renderSquare(2)}
@@ -168,9 +168,9 @@ export default function TicTacToe({ players, sessionId, myAddress, onGameEnd, on
                 </div>
             </div>
 
-            {(winner || opponentLeft || status === 'draw') && (
+            {(winner || opponentLeftLocal || status === 'draw') && (
                 <div className="text-center mt-4">
-                    {opponentLeft ? (
+                    {opponentLeftLocal ? (
                         <button onClick={handleCloseGame} className="btn btn-secondary">Close</button>
                     ) : rematchStatus?.status === 'pending' && iAmRematchReceiver ? (
                         <>
