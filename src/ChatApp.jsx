@@ -97,11 +97,10 @@ export default function ChatApp() {
     const isFetchingNewerMessages = useRef(false);
     const hasAttemptedAutoConnect = useRef(false);
     const lastMessageCountRef = useRef(0);
-    const typingTimeoutRef = useRef(null);
     const lastTypingValue = useRef(false);
     const dropdownRef = useRef(null);
     const lightboxRef = useRef(null);
-    const { onlineUsers, updateMyPresence, onlineCount } = usePresence(address, userProfile?.username);
+    const { onlineUsers, updateMyPresence, onlineCount, getSyncedNow } = usePresence(address, userProfile?.username);
     const [showConsoleModal, setShowConsoleModal] = useState(false);
     const [consoleLogs, setConsoleLogs] = useState([]);
 
@@ -361,20 +360,9 @@ export default function ChatApp() {
     }, []);
 
     const handleTyping = () => {
-        
-        if (!lastTypingValue.current) {
-            updateMyPresence({ isTyping: true });
-            lastTypingValue.current = true;
+        if (address && userProfile?.exists) {
+            updateMyPresence({ lastTyped: getSyncedNow() });
         }
-
-        if (typingTimeoutRef.current) {
-            clearTimeout(typingTimeoutRef.current);
-        }
-
-        typingTimeoutRef.current = setTimeout(() => {
-            updateMyPresence({ isTyping: false });
-            lastTypingValue.current = false;
-        },2000);
     };
 
     useEffect(() => {
