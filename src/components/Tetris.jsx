@@ -236,6 +236,9 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
           if (value !== 0) {
             ctx.fillStyle = COLORS[value];
             ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
           }
         });
       });
