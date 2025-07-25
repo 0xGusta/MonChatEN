@@ -19,7 +19,7 @@ const SHAPES = [
 
 const createEmptyBoard = () => Array.from({ length: ROWS }, () => Array(COLS).fill(0));
 
-export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRematchOffer, playerStatus, setPlayerStatus, onCloseGame }) {
+export default function Tetris({ players, sessionId, myAddress, onRematchOffer, playerStatus, setPlayerStatus, onCloseGame }) {
   const mySymbol = players?.challenger?.address.toLowerCase() === myAddress.toLowerCase() ? 'P1' : 'P2';
   const opponentSymbol = mySymbol === 'P1' ? 'P2' : 'P1';
 
@@ -50,7 +50,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   const lastTimeRef = useRef(0);
   const dropCounterRef = useRef(0);
 
-  const opponentClosed = playerStatus[opponentSymbol] === 'closed';
+  const opponentClosed = playerStatus?.[opponentSymbol] === 'closed';
 
   useEffect(() => {
     setPlayerStatus(prev => ({ ...prev, [mySymbol]: 'online' }));
@@ -103,7 +103,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   }, []);
 
   const resetPlayer = useCallback(() => {
-    const sequence = gameState[mySymbol + '_pieceSequence'];
+    const sequence = gameState?.[`${mySymbol}_pieceSequence`];
     if (!sequence) return;
 
     const nextShapeIndex = sequence[pieceIndex % sequence.length];
@@ -121,14 +121,11 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   useEffect(() => {
     resetPlayer();
   }, []);
-  
-useEffect(() => {
-    
+
+  useEffect(() => {
     if (player.shape && gameState?.[mySymbol] && !gameState[mySymbol].gameOver) {
         setGameState(prev => {
-            
             if (!prev) return prev;
-
             if (JSON.stringify(prev[`${mySymbol}_piece`]) === JSON.stringify(player)) {
                 return prev;
             }
@@ -138,19 +135,19 @@ useEffect(() => {
             };
         });
     }
-}, [player, mySymbol, gameState, setGameState]);
+  }, [player, mySymbol, gameState, setGameState]);
 
   const movePlayer = useCallback((dir) => {
-    if (isLocking || !player.shape || gameState.status === 'finished' || opponentClosed) return;
-    const board = gameState[mySymbol].board;
+    if (isLocking || !player.shape || gameState?.status === 'finished' || opponentClosed) return;
+    const board = gameState?.[mySymbol]?.board;
     if (!checkCollision({ ...player, pos: { x: player.pos.x + dir, y: player.pos.y } }, board)) {
       setPlayer(prev => ({ ...prev, pos: { x: prev.pos.x + dir, y: prev.pos.y } }));
     }
   }, [isLocking, player, gameState, mySymbol, opponentClosed, checkCollision]);
 
   const dropPlayer = useCallback(() => {
-    if (isLocking || !player.shape || gameState.status === 'finished' || opponentClosed) return;
-    const board = gameState[mySymbol].board;
+    if (isLocking || !player.shape || gameState?.status === 'finished' || opponentClosed) return;
+    const board = gameState?.[mySymbol]?.board;
     if (!checkCollision({ ...player, pos: { x: player.pos.x, y: player.pos.y + 1 } }, board)) {
       setPlayer(prev => ({ ...prev, pos: { x: prev.pos.x, y: prev.pos.y + 1 } }));
     } else {
@@ -168,7 +165,7 @@ useEffect(() => {
   }, [isLocking, player, gameState, mySymbol, opponentSymbol, opponentClosed, checkCollision, setGameState]);
 
   const playerRotate = useCallback((dir) => {
-    if (isLocking || !player.shape || gameState.status === 'finished' || opponentClosed) return;
+    if (isLocking || !player.shape || gameState?.status === 'finished' || opponentClosed) return;
     const clonedPlayer = JSON.parse(JSON.stringify(player));
     const rotate = (matrix) => {
       const transposed = matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
@@ -176,7 +173,7 @@ useEffect(() => {
     };
     clonedPlayer.shape = rotate(clonedPlayer.shape);
     let offset = 1;
-    const board = gameState[mySymbol].board;
+    const board = gameState?.[mySymbol]?.board;
     while (checkCollision(clonedPlayer, board)) {
       clonedPlayer.pos.x += offset;
       offset = -(offset + (offset > 0 ? 1 : -1));
@@ -186,7 +183,7 @@ useEffect(() => {
   }, [isLocking, player, gameState, mySymbol, opponentClosed, checkCollision]);
 
   useEffect(() => {
-    if (player.collided && !isLocking) {
+    if (player.collided && !isLocking && gameState?.[mySymbol] && gameState?.[opponentSymbol]) {
       const newMyBoard = gameState[mySymbol].board.map(row => [...row]);
       player.shape.forEach((row, y) => {
         row.forEach((value, x) => {
@@ -208,6 +205,7 @@ useEffect(() => {
       const garbageToSend = Math.max(0, linesCleared - 1);
 
       setGameState(prev => {
+        if (!prev) return prev;
         let newOpponentBoard = prev[opponentSymbol].board;
         const isOpponentTopRowClear = prev[opponentSymbol].board[0]?.every(cell => cell === 0);
 
@@ -261,15 +259,15 @@ useEffect(() => {
   }, [dropPlayer, dropTime]);
 
   useEffect(() => {
-    if (gameState.status === 'playing' && !gameState[mySymbol].gameOver) {
+    if (gameState?.status === 'playing' && !gameState?.[mySymbol]?.gameOver) {
       requestRef.current = requestAnimationFrame(animate);
     } else {
       cancelAnimationFrame(requestRef.current);
     }
     return () => cancelAnimationFrame(requestRef.current);
-  }, [gameState.status, gameState[mySymbol].gameOver, animate]);
+  }, [gameState, mySymbol, animate]);
 
- useEffect(() => {
+  useEffect(() => {
     const myCtx = gameAreaRef.current?.getContext('2d');
     const opponentCtx = opponentAreaRef.current?.getContext('2d');
     const nextPieceCtx = nextPieceCanvasRef.current?.getContext('2d');
@@ -351,7 +349,7 @@ useEffect(() => {
         nextPieceCtx.clearRect(0, 0, nextPieceCtx.canvas.width, nextPieceCtx.canvas.height);
     }
 
-}, [gameState, player, mySymbol, opponentSymbol, pieceIndex, blockSize]);
+  }, [gameState, player, mySymbol, opponentSymbol, pieceIndex, blockSize]);
 
   const handleRematchRequest = () => {
     if (!players || opponentClosed) return;
@@ -365,6 +363,8 @@ useEffect(() => {
       P2: { board: createEmptyBoard(), score: 0, lines: 0, gameOver: false },
       P1_pieceSequence: Array.from({ length: 100 }, () => Math.floor(Math.random() * 7) + 1),
       P2_pieceSequence: Array.from({ length: 100 }, () => Math.floor(Math.random() * 7) + 1),
+      P1_piece: null,
+      P2_piece: null,
       status: 'playing',
       winner: null,
     });
@@ -381,7 +381,7 @@ useEffect(() => {
   };
 
   const handleKeyDown = useCallback((e) => {
-    if (isLocking || gameState.status === 'finished' || opponentClosed) return;
+    if (isLocking || gameState?.status === 'finished' || opponentClosed) return;
     const key = e.key.toLowerCase();
     if (['a', 'arrowleft', 'd', 'arrowright', 's', 'arrowdown', 'w', 'arrowup', 'q', 'e'].includes(key)) {
       e.preventDefault();
@@ -397,7 +397,7 @@ useEffect(() => {
     else if (key === 'w' || key === 'arrowup') playerRotate(1);
     else if (key === 'q') playerRotate(-1);
     else if (key === 'e') playerRotate(1);
-  }, [isLocking, movePlayer, dropPlayer, playerRotate, gameState.status, opponentClosed, isDropping]);
+  }, [isLocking, movePlayer, dropPlayer, playerRotate, gameState, opponentClosed, isDropping]);
 
   const handleKeyUp = useCallback((e) => {
     const key = e.key.toLowerCase();
@@ -427,7 +427,7 @@ useEffect(() => {
 
   const renderPlayerArea = (symbol, isOpponent = false) => {
     const areaRef = isOpponent ? opponentAreaRef : gameAreaRef;
-    const playerData = gameState[symbol] || { board: createEmptyBoard(), score: 0, gameOver: false };
+    const playerData = gameState?.[symbol] || { board: createEmptyBoard(), score: 0, gameOver: false };
 
     return (
       <div className="text-center flex flex-col items-center">
@@ -473,9 +473,9 @@ useEffect(() => {
         {renderPlayerArea(opponentSymbol, true)}
       </div>
 
-      {gameState.status === 'playing' &&
-        !gameState[mySymbol].gameOver &&
-        !gameState[opponentSymbol].gameOver &&
+      {gameState?.status === 'playing' &&
+        !gameState?.[mySymbol]?.gameOver &&
+        !gameState?.[opponentSymbol]?.gameOver &&
         !opponentClosed && (
           <>
             <div className="block md:hidden mt-4 w-full max-w-xs">
@@ -500,7 +500,7 @@ useEffect(() => {
               Close
             </button>
           </>
-        ) : gameState.status === 'finished' ? (
+        ) : gameState?.status === 'finished' ? (
           <>
             {gameState.winner && (
               <div className="text-green-400 font-bold text-xl sm:text-2xl mb-4">
@@ -509,6 +509,20 @@ useEffect(() => {
             )}
             {rematchStatus?.status === 'pending' ? (
               iAmRematchReceiver ? (
+                <>
+                  <p className="mb-2">{getPlayerName(opponentSymbol)} wants a rematch!</p>
+                  <button onClick={handleAcceptRematch} className="btn btn-primary mr-2">
+                    Accept
+                  </button>
+                  <button onClick={handleDeclineRematch} className="btn btn-secondary">
+                    Decline
+                  </button>
+                </>
+              ) : (
+                <p>Waiting for {getPlayerName(opponentSymbol)} to respond...</p>
+              )
+            ) : rematchStatus?.status === 'declined' ? (
+            iAmRematchReceiver ? (
                 <>
                   <p className="mb-2">{getPlayerName(opponentSymbol)} wants a rematch!</p>
                   <button onClick={handleAcceptRematch} className="btn btn-primary mr-2">
