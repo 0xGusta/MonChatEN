@@ -231,8 +231,8 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
     const myCtx = gameAreaRef.current?.getContext('2d');
     const opponentCtx = opponentAreaRef.current?.getContext('2d');
     const nextPieceCtx = nextPieceCanvasRef.current?.getContext('2d');
-    if (!myCtx || !opponentCtx || !nextPieceCtx) return;
-  
+    if (!myCtx || !opponentCtx) return;
+
     const drawBoard = (ctx, board, currentPlayer = null) => {
       ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
       board.forEach((row, y) => {
@@ -246,7 +246,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
           }
         });
       });
-  
+
       if (currentPlayer?.shape) {
         currentPlayer.shape.forEach((row, y) => {
           row.forEach((value, x) => {
@@ -263,8 +263,9 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
         });
       }
     };
-  
+
     const drawNextPiece = (ctx, shape) => {
+        if (!ctx) return;
         ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
         if (!shape) return;
 
@@ -272,8 +273,9 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
         const color = COLORS[colorIndex];
         const shapeWidth = shape[0].length;
         const shapeHeight = shape.length;
+        const canvasHeightInBlocks = 2.5;
         const offsetX = (4 - shapeWidth) / 2;
-        const offsetY = (4 - shapeHeight) / 2;
+        const offsetY = (canvasHeightInBlocks - shapeHeight) / 2;
 
         shape.forEach((row, y) => {
             row.forEach((value, x) => {
@@ -295,7 +297,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
     if (mySequence && mySequence[pieceIndex]) {
         const nextShape = SHAPES[mySequence[pieceIndex]];
         drawNextPiece(nextPieceCtx, nextShape);
-    } else {
+    } else if (nextPieceCtx) {
         nextPieceCtx.clearRect(0, 0, nextPieceCtx.canvas.width, nextPieceCtx.canvas.height);
     }
 
@@ -379,38 +381,34 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
 
     return (
       <div className="text-center flex flex-col items-center">
-        <h3 className="font-bold text-sm sm:text-base">
+        <h3 className="font-bold text-sm sm:text-base mb-1">
           {getPlayerName(symbol)} {!isOpponent ? '(You)' : ''}
         </h3>
-        <div className="flex flex-row items-start gap-2">
-            <div className="w-[40vw] max-w-[200px]">
-                <canvas
-                    ref={areaRef}
-                    width={COLS * BLOCK_SIZE}
-                    height={ROWS * BLOCK_SIZE}
-                    className={`w-full h-auto border-2 bg-darkCard ${isOpponent ? 'border-gray-600' : 'border-monad'}`}
-                />
-            </div>
-            {!isOpponent && (
-                <div className="flex flex-col items-center">
-                    <div className="text-white text-sm mb-1">Score: {playerData.score}</div>
-                    <div className="mt-1">
-                        <h4 className="text-xs font-semibold">Next</h4>
-                        <canvas
-                            ref={nextPieceCanvasRef}
-                            width={BLOCK_SIZE * 4}
-                            height={BLOCK_SIZE * 4}
-                            className="border border-gray-400 bg-darkCard"
-                        />
-                    </div>
-                </div>
-            )}
-             {isOpponent && (
-                 <div className="flex flex-col items-center">
-                    <div className="text-white text-sm mb-1">Score: {playerData.score}</div>
-                 </div>
-            )}
+        
+        <div className="w-[45vw] sm:w-[40vw] max-w-[200px]">
+          <canvas
+            ref={areaRef}
+            width={COLS * BLOCK_SIZE}
+            height={ROWS * BLOCK_SIZE}
+            className={`w-full h-auto border-2 bg-darkCard ${isOpponent ? 'border-gray-600' : 'border-monad'}`}
+          />
         </div>
+
+        <div className="flex flex-row justify-around items-center w-full mt-2 px-1">
+          <div className="text-white text-xs sm:text-sm">Score: {playerData.score}</div>
+          {!isOpponent && (
+            <div className="flex flex-col items-center">
+              <h4 className="text-xs font-semibold">Next</h4>
+              <canvas
+                ref={nextPieceCanvasRef}
+                width={BLOCK_SIZE * 4}
+                height={BLOCK_SIZE * 2.5}
+                className="border border-gray-400 bg-darkCard"
+              />
+            </div>
+          )}
+        </div>
+
         {playerData.gameOver && (
           <div className="text-red-500 font-bold text-xl sm:text-2xl mt-1">GAME OVER</div>
         )}
@@ -420,7 +418,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
 
 return (
   <div className="flex flex-col items-center max-h-[90vh] overflow-y-auto">
-    <div className="flex flex-row justify-center items-start gap-4 w-full px-2">
+    <div className="flex flex-row justify-center items-center md:items-start gap-y-4 md:gap-x-4 w-full px-2">
       {renderPlayerArea(mySymbol, false)}
       {renderPlayerArea(opponentSymbol, true)}
     </div>
