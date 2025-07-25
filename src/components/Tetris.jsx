@@ -401,41 +401,52 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
     const areaRef = isOpponent ? opponentAreaRef : gameAreaRef;
     const playerData = gameState[symbol] || { board: createEmptyBoard(), score: 0, gameOver: false };
 
-    return (
-      <div className="text-center flex flex-col items-center">
-        <h3 className="font-bold text-sm sm:text-base mb-1">
-          {getPlayerName(symbol)} {!isOpponent ? '(You)' : ''}
-        </h3>
-        
-        <div className="w-[40vw] md:w-[40vw] max-w-[150px] md:max-w-[200px]">
-          <canvas
-            ref={areaRef}
-            width={COLS * blockSize}
-            height={ROWS * blockSize}
-            className={`w-full h-auto border-2 bg-darkCard ${isOpponent ? 'border-gray-600' : 'border-monad'}`}
-          />
-        </div>
-
-        <div className="flex flex-row justify-around items-center w-full mt-2 px-1">
-          <div className="text-white text-xs sm:text-sm">Score: {playerData.score}</div>
-          {!isOpponent && (
-            <div className="flex flex-col items-center">
-              <h4 className="text-xs font-semibold">Next</h4>
-              <canvas
-                ref={nextPieceCanvasRef}
-                width={blockSize * 4}
-                height={blockSize * 2.5}
-                className="border border-gray-400 bg-darkCard"
-              />
-            </div>
-          )}
-        </div>
-
-        {playerData.gameOver && (
-          <div className="text-red-500 font-bold text-xl sm:text-2xl mt-1">GAME OVER</div>
+  return (
+    <div className="text-center flex flex-col items-center">
+      <h3 className="font-bold text-sm sm:text-base mb-1 flex items-center justify-center gap-2">
+        {getPlayerName(symbol)}
+        {!isOpponent && (
+          <>
+            <span>(You)</span>
+            <canvas
+              ref={nextPieceCanvasRef}
+              width={blockSize * 4}
+              height={blockSize * 2.5}
+              className="border border-gray-400 bg-darkCard w-[80px] h-auto"
+            />
+          </>
+        )}
+      </h3>
+      
+      <div className="w-[40vw] md:w-[40vw] max-w-[150px] md:max-w-[200px]">
+        <canvas
+          ref={areaRef}
+          width={COLS * blockSize}
+          height={ROWS * blockSize}
+          className={`w-full h-auto border-2 bg-darkCard ${isOpponent ? 'border-gray-600' : 'border-monad'}`}
+        />
+      </div>
+  
+      <div className="flex flex-row justify-around items-center w-full mt-2 px-1">
+        <div className="text-white text-xs sm:text-sm">Score: {playerData.score}</div>
+        {isOpponent && (
+          <div className="flex flex-col items-center">
+            <h4 className="text-xs font-semibold">Next</h4>
+            <canvas
+              ref={nextPieceCanvasRef}
+              width={blockSize * 4}
+              height={blockSize * 2.5}
+              className="border border-gray-400 bg-darkCard"
+            />
+          </div>
         )}
       </div>
-    );
+  
+      {playerData.gameOver && (
+        <div className="text-red-500 font-bold text-xl sm:text-2xl mt-1">GAME OVER</div>
+      )}
+    </div>
+  );
   };
 
   return (
