@@ -339,14 +339,17 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
         </div>
       </div>
 
-      {(gameState[mySymbol].gameOver || gameState[opponentSymbol].gameOver || opponentClosed) && (
-        <div className="text-center mt-4">
-          {opponentClosed && !winner ? (
-            <>
-              <p className="mb-2">The opponent has left the game.</p>
-              <button onClick={handleCloseGame} className="btn btn-secondary">Close</button>
-            </>
-          ) : rematchStatus?.status === 'pending' ? (
+      <div className="text-center mt-4">
+        {opponentClosed ? (
+          <>
+            <p className="mb-2 text-lg font-semibold">The opponent has left the game.</p>
+            <p className="mb-4">You won by forfeit.</p>
+            <button onClick={handleCloseGame} className="btn btn-secondary">
+              Close
+            </button>
+          </>
+        ) : gameState.P1.gameOver || gameState.P2.gameOver ? (
+          rematchStatus?.status === 'pending' ? (
             iAmRematchReceiver ? (
               <>
                 <p className="mb-2">{getPlayerName(opponentSymbol)} wants a rematch!</p>
@@ -359,7 +362,9 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
           ) : rematchStatus?.status === 'declined' ? (
             <>
               <p className="mb-2">
-                {iAmRematchRequester ? `${getPlayerName(opponentSymbol)} declined your rematch request.` : `You declined the rematch.`}
+                {iAmRematchRequester
+                  ? `${getPlayerName(opponentSymbol)} declined the rematch.`
+                  : `You declined the rematch.`}
               </p>
               <button onClick={handleCloseGame} className="btn btn-secondary">Close</button>
             </>
@@ -368,7 +373,9 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
               <button onClick={handleRematchRequest} className="btn btn-primary">Play Again?</button>
               <button onClick={handleCloseGame} className="btn btn-secondary">Close</button>
             </div>
-          )}
+          )
+        ) : null}
+      </div>
         </div>
       )}
     </div>
