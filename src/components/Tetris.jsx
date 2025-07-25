@@ -65,15 +65,19 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   const lastTimeRef = useRef(0)
   const dropCounterRef = useRef(0)
 
-  const opponentClosed = playerStatus[opponentSymbol] === 'closed'
+  const opponentClosed = playerStatus && playerStatus[opponentSymbol] === 'closed'
 
   useEffect(() => {
-    setPlayerStatus(prev => ({ ...prev, [mySymbol]: 'online' }))
+    if (setPlayerStatus) {
+      setPlayerStatus(prev => ({ ...prev, [mySymbol]: 'online' }))
+    }
   }, [mySymbol, setPlayerStatus])
 
   useEffect(() => {
     const handleUnload = () => {
-      setPlayerStatus(prev => ({ ...prev, [mySymbol]: 'closed' }))
+       if (setPlayerStatus) {
+        setPlayerStatus(prev => ({ ...prev, [mySymbol]: 'closed' }))
+       }
     }
     window.addEventListener('beforeunload', handleUnload)
     document.addEventListener('visibilitychange', () => {
@@ -141,7 +145,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
 
   const movePlayer = useCallback(
     dir => {
-      if (isLocking || !player.shape || gameState.status === 'finished' || opponentClosed) return
+      if (isLocking || !player.shape || (gameState && gameState.status === 'finished') || opponentClosed) return
       const board = gameState[mySymbol]?.board || createEmptyBoard()
       if (!checkCollision({ ...player, pos: { x: player.pos.x + dir, y: player.pos.y } }, board)) {
         setPlayer(prev => ({ ...prev, pos: { x: prev.pos.x + dir, y: prev.pos.y } }))
@@ -151,7 +155,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   )
 
   const dropPlayer = useCallback(() => {
-    if (isLocking || !player.shape || gameState.status === 'finished' || opponentClosed) return
+    if (isLocking || !player.shape || (gameState && gameState.status === 'finished') || opponentClosed) return
     const board = gameState[mySymbol]?.board || createEmptyBoard()
     if (!checkCollision({ ...player, pos: { x: player.pos.x, y: player.pos.y + 1 } }, board)) {
       setPlayer(prev => ({ ...prev, pos: { x: prev.pos.x, y: prev.pos.y + 1 } }))
@@ -171,7 +175,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
 
   const playerRotate = useCallback(
     dir => {
-      if (isLocking || !player.shape || gameState.status === 'finished' || opponentClosed) return
+      if (isLocking || !player.shape || (gameState && gameState.status === 'finished') || opponentClosed) return
       const clonedPlayer = JSON.parse(JSON.stringify(player))
       const rotate = matrix => {
         const transposed = matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]))
@@ -191,7 +195,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   )
 
   useEffect(() => {
-    if (player.collided) {
+    if (player.collided && gameState && gameState[mySymbol]) {
       const newMyBoard = gameState[mySymbol].board.map(row => [...row])
       player.shape.forEach((row, y) => {
         row.forEach((value, x) => {
@@ -213,6 +217,8 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
       const garbageToSend = Math.max(0, linesCleared - 1)
 
       setGameState(prev => {
+        if (!prev || !prev[opponentSymbol]) return prev;
+
         let newOpponentBoard = prev[opponentSymbol].board
         const isOpponentTopRowClear = prev[opponentSymbol].board[0]?.every(cell => cell === 0)
 
@@ -261,13 +267,13 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   )
 
   useEffect(() => {
-    if (gameState.status === 'playing' && !gameState[mySymbol].gameOver) {
+    if (gameState && gameState.status === 'playing' && gameState[mySymbol] && !gameState[mySymbol].gameOver) {
       requestRef.current = requestAnimationFrame(animate)
     } else {
       cancelAnimationFrame(requestRef.current)
     }
     return () => cancelAnimationFrame(requestRef.current)
-  }, [gameState.status, gameState, mySymbol, animate])
+  }, [gameState, mySymbol, animate])
 
   useEffect(() => {
     const myCtx = gameAreaRef.current?.getContext('2d')
@@ -276,17 +282,19 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
 
     const drawBoard = (ctx, board, currentPlayer = null) => {
       ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height)
-      board.forEach((row, y) => {
-        row.forEach((value, x) => {
-          if (value !== 0) {
-            ctx.fillStyle = COLORS[value]
-            ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
-            ctx.strokeStyle = '#000000'
-            ctx.lineWidth = 1
-            ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
-          }
-        })
-      })
+      if (board) {
+          board.forEach((row, y) => {
+            row.forEach((value, x) => {
+              if (value !== 0) {
+                ctx.fillStyle = COLORS[value]
+                ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
+                ctx.strokeStyle = '#000000'
+                ctx.lineWidth = 1
+                ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
+              }
+            })
+          })
+      }
       if (currentPlayer?.shape) {
         currentPlayer.shape.forEach((row, y) => {
           row.forEach((value, x) => {
@@ -342,7 +350,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
 
   const handleKeyDown = useCallback(
     e => {
-      if (isLocking || gameState.status === 'finished' || opponentClosed) return
+      if (isLocking || (gameState && gameState.status === 'finished') || opponentClosed) return
       const key = e.key.toLowerCase()
       if (['a', 'arrowleft', 'd', 'arrowright', 's', 'arrowdown', 'w', 'arrowup', 'q', 'e'].includes(key)) {
         e.preventDefault()
@@ -477,7 +485,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
         </div>
       </div>
 
-      {gameState.status === 'finished' && (
+      {gameState && gameState.status === 'finished' && (
         <div className="mt-4 flex flex-col items-center gap-2">
           <p className="font-bold text-lg">
             {gameState.winner === mySymbol
@@ -515,7 +523,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
               {iAmRematchRequester && rematchStatus.status === 'pending' && (
                 <p>Waiting for opponent to accept rematch...</p>
               )}
-              {(rematchStatus.status === 'declined') && <p>Rematch declined.</p>}
+              {rematchStatus && rematchStatus.status === 'declined' && <p>Rematch declined.</p>}
             </>
           )}
           {opponentClosed && <p>Your opponent has left the game.</p>}
