@@ -509,5 +509,4 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
         ) : null}
       </div>
     </div>
-  );
-}
+  );}
