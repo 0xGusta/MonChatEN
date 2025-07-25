@@ -1440,7 +1440,7 @@ export default function ChatApp() {
         });
     }, [setChallenges, showPopup]);
     
-    const handleGameEnd = useCallback((sessionId, reason) => {
+    const handleGameEnd = (sessionId, reason) => {
         if (sessionId) {
             
             sendSystemMessage(channel, `ended the ${activeGame} game.`, sessionId);
