@@ -346,7 +346,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
         </div>
       </div>
   
-      {!gameState[mySymbol].gameOver && !opponentClosed && (
+      {gameState.status === 'playing' && !gameState[mySymbol].gameOver && !gameState[opponentSymbol].gameOver && !opponentClosed && (
         <div className="block md:hidden mt-4 w-full max-w-xs">
           <GameControls onMove={movePlayer} onRotate={playerRotate} onDrop={dropPlayer} />
         </div>
