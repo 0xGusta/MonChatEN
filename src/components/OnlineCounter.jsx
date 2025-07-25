@@ -17,7 +17,11 @@ const OnlineCounter = ({ count }) => {
     <div className="online-counter" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
       <span>Online:</span>
       {isLoading ? (
-        <span className="loading-spinner" />
+        <span 
+          className="loading-spinner" 
+          style={{ width: '16px', height: '16px', borderWidth: '2px' }}
+          title="synchronizing with multisynq..."
+        />
       ) : (
         <span>{count}</span>
       )}
