@@ -407,7 +407,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
           {getPlayerName(symbol)} {!isOpponent ? '(You)' : ''}
         </h3>
         
-        <div className="w-[60vw] md:w-[40vw] max-w-[225px] md:max-w-[200px]">
+        <div className="w-[40vw] md:w-[40vw] max-w-[150px] md:max-w-[200px]">
           <canvas
             ref={areaRef}
             width={COLS * blockSize}
