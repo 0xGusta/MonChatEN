@@ -1440,32 +1440,27 @@ export default function ChatApp() {
         });
     }, [setChallenges, showPopup]);
     
-    const handleGameEnd = useCallback((sessionId, reason) => {
-        if (sessionId) {
-            
-            sendSystemMessage(channel, `ended the ${activeGame} game.`, sessionId);
-        }
-  
+    const handleGameEnd = useCallback((sessionId, result) => {
         setActiveGame(null);
         setGamePlayers(null);
         setGameSessionId(null);
     
-        if (reason === 'closed') {
+        if (result === 'closed') {
             showPopup("Game closed.", "info");
-        } else if (reason === 'opponent_left') {
+        } else if (result === 'opponent_left') {
             showPopup("Opponent left the game. Game over.", "warning");
-        } else if (reason === 'rematch_declined') {
+        } else if (result === 'rematch_declined') {
             showPopup("Rematch declined by opponent.", "info");
         }
     
-        if (reason !== 'rematch_declined' && sessionId) {
+        if (result !== 'rematch_declined') {
             setChallenges(prev => {
                 const newState = { ...prev };
                 delete newState[sessionId];
                 return newState;
             });
         }
-    }, [setChallenges, showPopup, activeGame]);
+    }, [setChallenges, showPopup]);
     
     const handleRematchOffer = useCallback((sessionId, symbol, status = 'pending') => {
         setChallenges(prev => {
