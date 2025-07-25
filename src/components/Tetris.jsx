@@ -121,20 +121,24 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   useEffect(() => {
     resetPlayer();
   }, []);
-  useEffect(() => {
-      if (player.shape && !gameState[mySymbol].gameOver) {
-          setGameState(prev => {
+  
+useEffect(() => {
+    
+    if (player.shape && gameState?.[mySymbol] && !gameState[mySymbol].gameOver) {
+        setGameState(prev => {
+            
+            if (!prev) return prev;
 
-              if (JSON.stringify(prev[mySymbol + '_piece']) === JSON.stringify(player)) {
-                  return prev;
-              }
-              return {
-                  ...prev,
-                  [`${mySymbol}_piece`]: player,
-              };
-          });
-      }
-  }, [player, mySymbol, gameState, setGameState]);
+            if (JSON.stringify(prev[`${mySymbol}_piece`]) === JSON.stringify(player)) {
+                return prev;
+            }
+            return {
+                ...prev,
+                [`${mySymbol}_piece`]: player,
+            };
+        });
+    }
+}, [player, mySymbol, gameState, setGameState]);
 
   const movePlayer = useCallback((dir) => {
     if (isLocking || !player.shape || gameState.status === 'finished' || opponentClosed) return;
