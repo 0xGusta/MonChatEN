@@ -313,8 +313,8 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
                     )}
                 </div>
 
-                <div className="w-full md:w-auto mt-4 md:mt-0">
-                    <GameControls onMove={movePlayer} onRotate={playerRotate} onDrop={dropPlayer} />
+                <div className="block md:hidden fixed bottom-0 w-full p-4 z-50">
+                  <GameControls onMove={movePlayer} onRotate={playerRotate} onDrop={dropPlayer} />
                 </div>
             </div>
             {winner && (
