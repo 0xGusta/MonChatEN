@@ -280,7 +280,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
 
     return (
         <div className="flex flex-col items-center">
-            <div className="flex flex-row flex-wrap justify-center items-start gap-4 w-full px-2">
+            <div className="flex flex-row justify-center items-start gap-2 w-full px-2">
                 <div className="text-center flex flex-col items-center">
                     <h3 className="font-bold text-sm sm:text-base">{getPlayerName('P1')} {mySymbol === 'P1' ? '(You)' : ''}</h3>
                     <div className="w-[40vw] max-w-[200px]">
