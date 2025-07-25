@@ -4,7 +4,7 @@ import { setTimeOffset } from '../utils/timeSync.js';
 
 const HEARTBEAT_INTERVAL = 5000;
 const OFFLINE_THRESHOLD = 12000;
-const TYPING_THRESHOLD = 3000;
+const TYPING_THRESHOLD = 1000;
 
 const fetchWithRetry = async (url, options, retries = 5, backoff = 300) => {
   for (let i = 0; i < retries; i++) {
