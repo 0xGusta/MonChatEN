@@ -60,7 +60,9 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
 
   useEffect(() => {
     const handleUnload = () => {
-      setPlayerStatus(prev => ({ ...prev, [mySymbol]: 'closed' }));
+      const updatedStatus = { [mySymbol]: 'closed' };
+      localStorage.setItem(`tetris-playerStatus-${sessionId}`, JSON.stringify(updatedStatus));
+      setPlayerStatus(prev => ({ ...prev, ...updatedStatus }));
     };
   
     window.addEventListener('beforeunload', handleUnload);
@@ -75,6 +77,22 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
       document.removeEventListener('visibilitychange', handleUnload);
     };
   }, []);
+
+  useEffect(() => {
+  const interval = setInterval(() => {
+    const status = localStorage.getItem(`tetris-playerStatus-${sessionId}`);
+    if (status) {
+      try {
+        const parsed = JSON.parse(status);
+        if (parsed[opponentSymbol] === 'closed') {
+          setPlayerStatus(prev => ({ ...prev, [opponentSymbol]: 'closed' }));
+        }
+      } catch {}
+    }
+  }, 3000);
+
+  return () => clearInterval(interval);
+}, [opponentSymbol, sessionId]);
 
   const checkCollision = useCallback((playerPiece, board) => {
     if (!playerPiece.shape || !board) return true;
