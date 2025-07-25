@@ -6,13 +6,7 @@ const OnlineCounter = ({ count }) => {
   useEffect(() => {
     const checkSpinner = () => {
       const el = document.querySelector('#croquet_spinnerOverlay');
-      if (el) {
-        const style = getComputedStyle(el);
-        const visible = style.display !== 'none' && style.opacity !== '0.9' && style.visibility !== 'hidden';
-        setIsLoading(visible);
-      } else {
-        setIsLoading(false);
-      }
+      setIsLoading(!!el);
     };
 
     const interval = setInterval(checkSpinner, 100);
