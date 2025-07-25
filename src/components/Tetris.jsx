@@ -49,6 +49,11 @@ const initialGameState = {
 }
 
 export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRematchOffer, playerStatus, setPlayerStatus, onCloseGame }) {
+
+  if (!playerStatus || !players) {
+    return null;
+  }
+
   const mySymbol = players?.challenger?.address.toLowerCase() === myAddress.toLowerCase() ? 'P1' : 'P2'
   const opponentSymbol = mySymbol === 'P1' ? 'P2' : 'P1'
 
