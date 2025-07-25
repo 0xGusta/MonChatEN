@@ -14,7 +14,7 @@ const UserAvatar = ({ user }) => {
         alt={userInfo.name}
         className="avatar-image"
       />
-      {isOnline && <div className="status-dot online"></div>}
+      {isOnline && <div className="status-dot online" title="Online"></div>}
     </div>
   );
 };
