@@ -5,8 +5,14 @@ const OnlineCounter = ({ count }) => {
 
   useEffect(() => {
     const checkSpinner = () => {
-      const spinner = document.querySelector('#croquet_spinnerOverlay');
-      setIsLoading(spinner && spinner.offsetParent !== null);
+      const el = document.querySelector('#croquet_spinnerOverlay');
+      if (el) {
+        const style = getComputedStyle(el);
+        const visible = style.display !== 'none' && style.opacity !== '0' && style.visibility !== 'hidden';
+        setIsLoading(visible);
+      } else {
+        setIsLoading(false);
+      }
     };
 
     const interval = setInterval(checkSpinner, 300);
@@ -15,10 +21,11 @@ const OnlineCounter = ({ count }) => {
 
   return (
     <div className="online-counter" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <span>Online:</span>
       {isLoading ? (
         <span className="loading-spinner" />
       ) : (
-        <>Online: {count}</>
+        <span>{count}</span>
       )}
     </div>
   );
