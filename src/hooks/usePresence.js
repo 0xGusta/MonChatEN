@@ -4,6 +4,7 @@ import { setTimeOffset } from '../utils/timeSync.js';
 
 const HEARTBEAT_INTERVAL = 5000;
 const OFFLINE_THRESHOLD = 12000;
+const TYPING_THRESHOLD = 1000;
 
 const fetchWithRetry = async (url, options, retries = 5, backoff = 300) => {
   for (let i = 0; i < retries; i++) {
@@ -115,24 +116,32 @@ export function usePresence(userId, userName) {
     });
   };
 
-  const onlineUsers = useMemo(() => {
-    return Object.keys(presence || {})
-      .map(key => {
-        const user = presence[key];
-        if (!user || !user.name || !user.lastSeen) {
-          return null;
-        }
-        const timeSinceSeen = now - user.lastSeen;
-        const isOnline = timeSinceSeen < OFFLINE_THRESHOLD;
-        return isOnline ? {
-          userId: key,
-          name: user.name,
-          isTyping: user.isTyping || false,
-          isOnline: true,
-        } : null;
-      })
-      .filter(Boolean);
-  }, [presence, now]);
+    const onlineUsers = useMemo(() => {
+
+        return Object.keys(presence || {})
+            .map(key => {
+                const user = presence[key];
+                if (!user || !user.name || !user.lastSeen) {
+                    return null;
+                }
+                const timeSinceSeen = now - user.lastSeen;
+                const isOnline = timeSinceSeen < OFFLINE_THRESHOLD;
+                const timeSinceTyped = now - (user.lastTyped || 0);
+                const isTyping = timeSinceTyped < TYPING_THRESHOLD;
+
+                if (!isOnline) {
+                    return null;
+                }
+
+                return {
+                    userId: key,
+                    name: user.name,
+                    isTyping: isTyping,
+                    isOnline: true,
+                };
+            })
+            .filter(Boolean);
+    }, [presence, now]);
 
   return {
     onlineUsers,
