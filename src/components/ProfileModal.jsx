@@ -38,7 +38,7 @@ export default function ProfileModal({ isOpen, onClose, userAddress, userProfile
                                   disabled={!isOnline}
                                   title="Challenge to a game of Tic-Tac-Toe"
                                 >
-                                  <i className="fas fa-times fa-o"></i> Challenge (Tic-Tac-Toe)
+                                  <i className="fas fa-times"></i><i class="fa-solid fa-o"></i> Challenge (Tic-Tac-Toe)
                                   {!isOnline && ' (offline)'}
                                 </button>
                                 <button
