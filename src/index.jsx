@@ -33,7 +33,6 @@ createAppKit({
   networks: chains,
   projectId,
   metadata,
-  enableNetworkSwitch: false,
   features: {
     connectMethodsOrder: ['wallet'],
     analytics: true
