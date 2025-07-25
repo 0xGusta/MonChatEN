@@ -119,11 +119,18 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
         collided: false,
       })
       setGameState(prev => {
-        let newIndexes = { ...prev.pieceIndexes }
-        newIndexes[mySymbol] = (newIndexes[mySymbol] + 1) % seq[mySymbol].length
-        let newSequences = { ...prev.pieceSequences }
-        if (newIndexes[mySymbol] === 0) newSequences[mySymbol] = generateBag()
-        return { ...prev, pieceIndexes: newIndexes, pieceSequences: newSequences }
+        if (!prev || !prev.pieceIndexes || !prev.pieceSequences) {
+            return prev;
+        }
+        const currentSequences = prev.pieceSequences;
+        let newIndexes = { ...prev.pieceIndexes };
+        newIndexes[mySymbol] = (newIndexes[mySymbol] + 1) % currentSequences[mySymbol].length;
+
+        let newSequences = { ...prev.pieceSequences };
+        if (newIndexes[mySymbol] === 0) {
+            newSequences[mySymbol] = generateBag();
+        }
+        return { ...prev, pieceIndexes: newIndexes, pieceSequences: newSequences };
       })
     }
   }, [gameState, mySymbol, setGameState])
@@ -318,7 +325,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
       P2: { board: createEmptyBoard(), score: 0, lines: 0, gameOver: false },
       pieceSequences: newPieceSequences,
       pieceIndexes: { P1: 0, P2: 0 },
-      playerStates: { P1: null, P2: null },
+      playerStates: { P1: 'online', P2: 'online' },
       status: 'playing',
       winner: null,
     })
