@@ -6,7 +6,8 @@ export default function GameModal({ isOpen, onClose, gameType, players, sessionI
     if (!isOpen) return null;
 
     const handleCloseGame = () => {
-        onClose();
+        //onClose();
+        onGameEnd(sessionId, 'closed');
     };
 
     const getGameTitle = () => {
