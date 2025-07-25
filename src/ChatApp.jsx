@@ -1719,7 +1719,7 @@ export default function ChatApp() {
                                                     <img src="/images/nopfp.png" alt="No photo" className="profile-pic" />
                                                 )}
                                             </button>
-                                                {isOnline && <div className="online-status-dot"></div>}
+                                                {isOnline && <div className="online-status-dot" title="Online"></div>}
                                             
                                         </div>
                                     )}
