@@ -388,7 +388,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
     const areaRef = isOpponent ? opponentAreaRef : gameAreaRef;
     const playerData = gameState[symbol] || { board: createEmptyBoard(), score: 0, gameOver: false };
 
-  return (
+    return (
       <div className="text-center flex flex-col items-center">
         <h3 className="font-bold text-sm sm:text-base mb-1">
           {getPlayerName(symbol)} {!isOpponent ? '(You)' : ''}
@@ -484,7 +484,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
               <>
                 <p className="mb-2">
                   {iAmRematchRequester
-                    ? ${getPlayerName(opponentSymbol)} declined the rematch.
+                    ? `${getPlayerName(opponentSymbol)} declined the rematch.`
                     : 'You declined the rematch.'}
                 </p>
                 <button onClick={onCloseGame} className="btn btn-secondary">
@@ -505,4 +505,5 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
         ) : null}
       </div>
     </div>
-  );}
+  );
+}
