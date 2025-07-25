@@ -1,19 +1,27 @@
 import React from 'react';
+import { useStateTogether } from 'react-together';
 import TicTacToe from './TicTacToe';
 import Tetris from './Tetris';
 
 export default function GameModal({ isOpen, onClose, gameType, players, sessionId, myAddress, onGameEnd, onRematchOffer }) {
+    const [playerStatus, setPlayerStatus] = useStateTogether(`tetris-playerStatus-${sessionId}`, {
+        P1: 'online',
+        P2: 'online',
+    });
+
     if (!isOpen) return null;
 
+    const mySymbol = players?.challenger?.address.toLowerCase() === myAddress.toLowerCase() ? 'P1' : 'P2';
+
     const handleCloseGame = () => {
-        //onClose();
+        setPlayerStatus(prev => ({ ...prev, [mySymbol]: 'closed' }));
         onGameEnd(sessionId, 'closed');
     };
 
     const getGameTitle = () => {
-        if (gameType === 'tictactoe') return 'Tic-Tac-Toe';
-        if (gameType === 'tetris') return 'Tetris Battle';
-        return 'Game';
+        if (gameType === 'tictactoe') return 'Jogo da Velha';
+        if (gameType === 'tetris') return 'Batalha de Tetris';
+        return 'Jogo';
     };
 
     return (
@@ -38,6 +46,9 @@ export default function GameModal({ isOpen, onClose, gameType, players, sessionI
                             myAddress={myAddress}
                             onGameEnd={onGameEnd}
                             onRematchOffer={onRematchOffer}
+                            playerStatus={playerStatus}
+                            setPlayerStatus={setPlayerStatus}
+                            onCloseGame={handleCloseGame}
                         />
                     )}
                 </div>
