@@ -399,7 +399,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
             ref={areaRef}
             width={COLS * BLOCK_SIZE}
             height={ROWS * BLOCK_SIZE}
-            className={w-full h-auto border-2 bg-darkCard ${isOpponent ? 'border-gray-600' : 'border-monad'}}
+            className={`w-full h-auto border-2 bg-darkCard ${isOpponent ? 'border-gray-600' : 'border-monad'}`}
           />
         </div>
 
