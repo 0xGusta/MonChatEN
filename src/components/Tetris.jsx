@@ -269,41 +269,42 @@ useEffect(() => {
     return () => cancelAnimationFrame(requestRef.current);
   }, [gameState.status, gameState[mySymbol].gameOver, animate]);
 
-  useEffect(() => {
+ useEffect(() => {
     const myCtx = gameAreaRef.current?.getContext('2d');
     const opponentCtx = opponentAreaRef.current?.getContext('2d');
     const nextPieceCtx = nextPieceCanvasRef.current?.getContext('2d');
-    if (!myCtx || !opponentCtx) return;
+
+    if (!myCtx || !opponentCtx || !gameState) return;
 
     const drawBoard = (ctx, board, currentPlayer = null, currentBlockSize) => {
-      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-      board.forEach((row, y) => {
-        row.forEach((value, x) => {
-          if (value !== 0) {
-            ctx.fillStyle = COLORS[value];
-            ctx.fillRect(x * currentBlockSize, y * currentBlockSize, currentBlockSize, currentBlockSize);
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(x * currentBlockSize, y * currentBlockSize, currentBlockSize, currentBlockSize);
-          }
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        board.forEach((row, y) => {
+            row.forEach((value, x) => {
+                if (value !== 0) {
+                    ctx.fillStyle = COLORS[value];
+                    ctx.fillRect(x * currentBlockSize, y * currentBlockSize, currentBlockSize, currentBlockSize);
+                    ctx.strokeStyle = '#000000';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(x * currentBlockSize, y * currentBlockSize, currentBlockSize, currentBlockSize);
+                }
+            });
         });
-      });
 
-      if (currentPlayer?.shape) {
-        currentPlayer.shape.forEach((row, y) => {
-          row.forEach((value, x) => {
-            if (value !== 0) {
-              const px = (currentPlayer.pos.x + x) * currentBlockSize;
-              const py = (currentPlayer.pos.y + y) * currentBlockSize;
-              ctx.fillStyle = COLORS[value];
-              ctx.fillRect(px, py, currentBlockSize, currentBlockSize);
-              ctx.strokeStyle = '#000000';
-              ctx.lineWidth = 1;
-              ctx.strokeRect(px, py, currentBlockSize, currentBlockSize);
-            }
-          });
-        });
-      }
+        if (currentPlayer?.shape) {
+            currentPlayer.shape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        const px = (currentPlayer.pos.x + x) * currentBlockSize;
+                        const py = (currentPlayer.pos.y + y) * currentBlockSize;
+                        ctx.fillStyle = COLORS[value];
+                        ctx.fillRect(px, py, currentBlockSize, currentBlockSize);
+                        ctx.strokeStyle = '#000000';
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(px, py, currentBlockSize, currentBlockSize);
+                    }
+                });
+            });
+        }
     };
 
     const drawNextPiece = (ctx, shape, currentBlockSize) => {
@@ -331,11 +332,18 @@ useEffect(() => {
             });
         });
     };
-    const opponentPiece = gameState[opponentSymbol + '_piece'];
-    drawBoard(myCtx, gameState[mySymbol].board, player, blockSize);
-     drawBoard(opponentCtx, gameState[opponentSymbol].board, opponentPiece, blockSize);
 
-    const mySequence = gameState[mySymbol + '_pieceSequence'];
+    const myBoardData = gameState[mySymbol];
+    const opponentBoardData = gameState[opponentSymbol];
+
+    if (!myBoardData || !opponentBoardData) return;
+    
+    const opponentPiece = gameState[`${opponentSymbol}_piece`];
+
+    drawBoard(myCtx, myBoardData.board, player, blockSize);
+    drawBoard(opponentCtx, opponentBoardData.board, opponentPiece, blockSize);
+
+    const mySequence = gameState[`${mySymbol}_pieceSequence`];
     if (mySequence && mySequence[pieceIndex]) {
         const nextShape = SHAPES[mySequence[pieceIndex]];
         drawNextPiece(nextPieceCtx, nextShape, blockSize);
@@ -343,7 +351,7 @@ useEffect(() => {
         nextPieceCtx.clearRect(0, 0, nextPieceCtx.canvas.width, nextPieceCtx.canvas.height);
     }
 
-  }, [gameState, player, mySymbol, opponentSymbol, pieceIndex, blockSize]);
+}, [gameState, player, mySymbol, opponentSymbol, pieceIndex, blockSize]);
 
   const handleRematchRequest = () => {
     if (!players || opponentClosed) return;
