@@ -53,6 +53,23 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
     setPlayerStatus(prev => ({ ...prev, [mySymbol]: 'online' }));
   }, []);
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (gameState[opponentSymbol].gameOver) return;
+      if (playerStatus[opponentSymbol] === 'closed') return;
+      const status = localStorage.getItem(`tetris-playerStatus-${sessionId}`);
+      if (status) {
+        try {
+          const parsed = JSON.parse(status);
+          if (parsed[opponentSymbol] === 'closed') {
+            setPlayerStatus(prev => ({ ...prev, [opponentSymbol]: 'closed' }));
+          }
+        } catch {}
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [opponentSymbol, sessionId, gameState]);
+
   const checkCollision = useCallback((playerPiece, board) => {
     if (!playerPiece.shape || !board) return true;
     const { shape, pos } = playerPiece;
