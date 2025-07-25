@@ -327,7 +327,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
             });
         });
     };
-
+    const opponentPiece = gameState[opponentSymbol + '_piece'];
     drawBoard(myCtx, gameState[mySymbol].board, player, blockSize);
      drawBoard(opponentCtx, gameState[opponentSymbol].board, opponentPiece, blockSize);
 
