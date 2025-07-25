@@ -58,6 +58,24 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
     }
   }, [playerStatus[opponentSymbol]]);
 
+  useEffect(() => {
+    const handleUnload = () => {
+      setPlayerStatus(prev => ({ ...prev, [mySymbol]: 'closed' }));
+    };
+  
+    window.addEventListener('beforeunload', handleUnload);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        handleUnload();
+      }
+    });
+  
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload);
+      document.removeEventListener('visibilitychange', handleUnload);
+    };
+  }, []);
+
   const checkCollision = useCallback((playerPiece, board) => {
     if (!playerPiece.shape || !board) return true;
     const { shape, pos } = playerPiece;
