@@ -147,5 +147,6 @@ export function usePresence(userId, userName) {
     onlineUsers,
     onlineCount: onlineUsers.length,
     updateMyPresence,
+    getSyncedNow,
   };
 }
