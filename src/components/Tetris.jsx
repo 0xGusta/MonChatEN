@@ -105,8 +105,11 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   }, [])
 
   const resetPlayer = useCallback(() => {
-    const seq = gameState.pieceSequences || { P1: generateBag(), P2: generateBag() }
-    const idx = gameState.pieceIndexes || { P1: 0, P2: 0 }
+    if (!gameState || !gameState.pieceSequences || !gameState.pieceIndexes) {
+      return;
+    }
+    const seq = gameState.pieceSequences
+    const idx = gameState.pieceIndexes
     const nextShapeIndex = seq[mySymbol]?.[idx[mySymbol]] || 1
     const newShape = SHAPES[nextShapeIndex]
     if (newShape) {
@@ -257,7 +260,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
       cancelAnimationFrame(requestRef.current)
     }
     return () => cancelAnimationFrame(requestRef.current)
-  }, [gameState.status, gameState[mySymbol].gameOver, animate])
+  }, [gameState.status, gameState, mySymbol, animate])
 
   useEffect(() => {
     const myCtx = gameAreaRef.current?.getContext('2d')
@@ -293,9 +296,10 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
         })
       }
     }
-
-    drawBoard(myCtx, gameState[mySymbol].board, player)
-    drawBoard(opponentCtx, gameState[opponentSymbol].board)
+    if (gameState && gameState[mySymbol] && gameState[opponentSymbol]) {
+        drawBoard(myCtx, gameState[mySymbol].board, player)
+        drawBoard(opponentCtx, gameState[opponentSymbol].board)
+    }
   }, [gameState, player, mySymbol, opponentSymbol])
 
   const handleRematchRequest = () => {
@@ -347,7 +351,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
       else if (key === 'q') playerRotate(-1)
       else if (key === 'e') playerRotate(1)
     },
-    [isLocking, movePlayer, dropPlayer, playerRotate, gameState.status, opponentClosed, isDropping]
+    [isLocking, movePlayer, dropPlayer, playerRotate, gameState, opponentClosed, isDropping]
   )
 
   const handleKeyUp = useCallback(e => {
@@ -377,7 +381,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   const iAmRematchReceiver = rematchStatus && rematchStatus.by === opponentSymbol
 
   const nextShapeIndex =
-    gameState.pieceSequences?.[mySymbol]?.[gameState.pieceIndexes?.[mySymbol]] || 1
+    gameState?.pieceSequences?.[mySymbol]?.[gameState?.pieceIndexes?.[mySymbol]] || 1
   const nextShape = SHAPES[nextShapeIndex]
 
   return (
