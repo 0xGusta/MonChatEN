@@ -2,8 +2,8 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { useStateTogether } from 'react-together';
 import { setTimeOffset } from '../utils/timeSync.js';
 
-const HEARTBEAT_INTERVAL = 5000;
-const OFFLINE_THRESHOLD = 12000;
+const HEARTBEAT_INTERVAL = 2000;
+const OFFLINE_THRESHOLD = 5000;
 const TYPING_THRESHOLD = 1000;
 
 const fetchWithRetry = async (url, options, retries = 5, backoff = 300) => {
