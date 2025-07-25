@@ -54,21 +54,9 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   }, []);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (gameState[opponentSymbol].gameOver) return;
-      if (playerStatus[opponentSymbol] === 'closed') return;
-      const status = localStorage.getItem(`tetris-playerStatus-${sessionId}`);
-      if (status) {
-        try {
-          const parsed = JSON.parse(status);
-          if (parsed[opponentSymbol] === 'closed') {
-            setPlayerStatus(prev => ({ ...prev, [opponentSymbol]: 'closed' }));
-          }
-        } catch {}
-      }
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [opponentSymbol, sessionId, gameState]);
+    if (playerStatus[opponentSymbol] === 'closed') {
+    }
+  }, [playerStatus[opponentSymbol]]);
 
   const checkCollision = useCallback((playerPiece, board) => {
     if (!playerPiece.shape || !board) return true;
@@ -315,11 +303,11 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
         </div>
       </div>
 
-      {(winner || opponentClosed) && (
+      {(gameState[mySymbol].gameOver || gameState[opponentSymbol].gameOver || opponentClosed) && (
         <div className="text-center mt-4">
-          {opponentClosed ? (
+          {opponentClosed && !winner ? (
             <>
-              <p className="mb-2">Opponent left the game.</p>
+              <p className="mb-2">The opponent has left the game.</p>
               <button onClick={handleCloseGame} className="btn btn-secondary">Close</button>
             </>
           ) : rematchStatus?.status === 'pending' ? (
