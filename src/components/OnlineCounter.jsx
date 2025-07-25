@@ -8,14 +8,14 @@ const OnlineCounter = ({ count }) => {
       const el = document.querySelector('#croquet_spinnerOverlay');
       if (el) {
         const style = getComputedStyle(el);
-        const visible = style.display !== 'none' && style.opacity !== '0' && style.visibility !== 'hidden';
+        const visible = style.display !== 'none' && style.opacity !== '0.9' && style.visibility !== 'hidden';
         setIsLoading(visible);
       } else {
         setIsLoading(false);
       }
     };
 
-    const interval = setInterval(checkSpinner, 300);
+    const interval = setInterval(checkSpinner, 100);
     return () => clearInterval(interval);
   }, []);
 
