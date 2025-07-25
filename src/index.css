@@ -728,7 +728,11 @@
     .chat-container {
         margin: 0;
     }
-      
+
+    .typing-indicator-container {
+        top: 35px;
+    }
+	
     .typing-gif {
         width: 100%;
         height: 100%;
