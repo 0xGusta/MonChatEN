@@ -36,6 +36,7 @@ export default function GameModal({ isOpen, onClose, gameType, players, sessionI
                             sessionId={sessionId}
                             myAddress={myAddress}
                             onGameEnd={onGameEnd}
+                            onRematchOffer={onRematchOffer}
                         />
                     )}
                 </div>
