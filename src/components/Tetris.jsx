@@ -401,7 +401,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
     const areaRef = isOpponent ? opponentAreaRef : gameAreaRef;
     const playerData = gameState[symbol] || { board: createEmptyBoard(), score: 0, gameOver: false };
 
-  return (
+    return (
       <div className="text-center flex flex-col items-center">
         <h3 className="font-bold text-sm sm:text-base mb-1">
           {getPlayerName(symbol)} {!isOpponent ? '(You)' : ''}
@@ -412,7 +412,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
             ref={areaRef}
             width={COLS * blockSize}
             height={ROWS * blockSize}
-            className={w-full h-auto border-2 bg-darkCard ${isOpponent ? 'border-gray-600' : 'border-monad'}}
+            className={`w-full h-auto border-2 bg-darkCard ${isOpponent ? 'border-gray-600' : 'border-monad'}`}
           />
         </div>
 
