@@ -100,6 +100,7 @@ export default function ChatApp() {
     const lastTypingValue = useRef(false);
     const dropdownRef = useRef(null);
     const lightboxRef = useRef(null);
+    const typingTimeoutRef = useRef(null);
     const { onlineUsers, updateMyPresence, onlineCount, getSyncedNow } = usePresence(address, userProfile?.username);
     const [showConsoleModal, setShowConsoleModal] = useState(false);
     const [consoleLogs, setConsoleLogs] = useState([]);
