@@ -1440,7 +1440,7 @@ export default function ChatApp() {
         });
     }, [setChallenges, showPopup]);
     
-    const handleGameEnd = (sessionId, reason) => {
+    const handleGameEnd = useCallback((sessionId, reason) => {
         if (sessionId) {
             
             sendSystemMessage(channel, `ended the ${activeGame} game.`, sessionId);
@@ -1465,7 +1465,7 @@ export default function ChatApp() {
                 return newState;
             });
         }
-    }, [setChallenges, showPopup, channel, activeGame]);
+    }, [setChallenges, showPopup, activeGame]);
     
     const handleRematchOffer = useCallback((sessionId, symbol, status = 'pending') => {
         setChallenges(prev => {
