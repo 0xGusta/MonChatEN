@@ -48,20 +48,12 @@ const initialGameState = {
   winner: null,
 }
 
-export default function Tetris({
-  players,
-  sessionId,
-  myAddress,
-  onGameEnd,
-  onRematchOffer,
-  playerStatus,
-  setPlayerStatus,
-  onCloseGame,
-}) {
+export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRematchOffer, playerStatus, setPlayerStatus, onCloseGame }) {
   const mySymbol = players?.challenger?.address.toLowerCase() === myAddress.toLowerCase() ? 'P1' : 'P2'
   const opponentSymbol = mySymbol === 'P1' ? 'P2' : 'P1'
 
   const [gameState, setGameState] = useStateTogether(`tetris-gamestate-${sessionId}`, initialGameState)
+  const [rematchStatus, setRematchStatus] = useStateTogether(`tetris-rematch-${sessionId}`, null)
   const [player, setPlayer] = useState({ pos: { x: 0, y: 0 }, shape: null, collided: false })
   const [isLocking, setIsLocking] = useState(false)
   const [isDropping, setIsDropping] = useState(false)
@@ -85,7 +77,9 @@ export default function Tetris({
     }
     window.addEventListener('beforeunload', handleUnload)
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') handleUnload()
+      if (document.visibilityState === 'hidden') {
+        handleUnload()
+      }
     })
     return () => {
       window.removeEventListener('beforeunload', handleUnload)
@@ -111,42 +105,34 @@ export default function Tetris({
   }, [])
 
   const resetPlayer = useCallback(() => {
-    const seq = gameState.pieceSequences[mySymbol]
-    const idx = gameState.pieceIndexes[mySymbol]
-    if (!seq) return
-    if (idx >= seq.length) {
-      const newSeq = generateBag()
-      setGameState(prev => ({
-        ...prev,
-        pieceSequences: { ...prev.pieceSequences, [mySymbol]: newSeq },
-        pieceIndexes: { ...prev.pieceIndexes, [mySymbol]: 0 },
-      }))
-      return
-    }
-    const shapeIndex = seq[idx]
-    const newShape = SHAPES[shapeIndex]
+    const seq = gameState.pieceSequences || { P1: generateBag(), P2: generateBag() }
+    const idx = gameState.pieceIndexes || { P1: 0, P2: 0 }
+    const nextShapeIndex = seq[mySymbol]?.[idx[mySymbol]] || 1
+    const newShape = SHAPES[nextShapeIndex]
     if (newShape) {
       setPlayer({
         pos: { x: Math.floor(COLS / 2) - Math.floor(newShape[0].length / 2), y: 0 },
         shape: newShape,
         collided: false,
       })
-      setGameState(prev => ({
-        ...prev,
-        pieceIndexes: { ...prev.pieceIndexes, [mySymbol]: idx + 1 },
-        playerStates: { ...prev.playerStates, [mySymbol]: { shape: newShape } },
-      }))
+      setGameState(prev => {
+        let newIndexes = { ...prev.pieceIndexes }
+        newIndexes[mySymbol] = (newIndexes[mySymbol] + 1) % seq[mySymbol].length
+        let newSequences = { ...prev.pieceSequences }
+        if (newIndexes[mySymbol] === 0) newSequences[mySymbol] = generateBag()
+        return { ...prev, pieceIndexes: newIndexes, pieceSequences: newSequences }
+      })
     }
   }, [gameState, mySymbol, setGameState])
 
   useEffect(() => {
     resetPlayer()
-  }, [resetPlayer])
+  }, [])
 
   const movePlayer = useCallback(
     dir => {
       if (isLocking || !player.shape || gameState.status === 'finished' || opponentClosed) return
-      const board = gameState[mySymbol].board
+      const board = gameState[mySymbol]?.board || createEmptyBoard()
       if (!checkCollision({ ...player, pos: { x: player.pos.x + dir, y: player.pos.y } }, board)) {
         setPlayer(prev => ({ ...prev, pos: { x: prev.pos.x + dir, y: prev.pos.y } }))
       }
@@ -156,7 +142,7 @@ export default function Tetris({
 
   const dropPlayer = useCallback(() => {
     if (isLocking || !player.shape || gameState.status === 'finished' || opponentClosed) return
-    const board = gameState[mySymbol].board
+    const board = gameState[mySymbol]?.board || createEmptyBoard()
     if (!checkCollision({ ...player, pos: { x: player.pos.x, y: player.pos.y + 1 } }, board)) {
       setPlayer(prev => ({ ...prev, pos: { x: prev.pos.x, y: prev.pos.y + 1 } }))
     } else {
@@ -183,7 +169,7 @@ export default function Tetris({
       }
       clonedPlayer.shape = rotate(clonedPlayer.shape)
       let offset = 1
-      const board = gameState[mySymbol].board
+      const board = gameState[mySymbol]?.board || createEmptyBoard()
       while (checkCollision(clonedPlayer, board)) {
         clonedPlayer.pos.x += offset
         offset = -(offset + (offset > 0 ? 1 : -1))
@@ -195,51 +181,58 @@ export default function Tetris({
   )
 
   useEffect(() => {
-    if (!player.collided) return
-    const newMyBoard = gameState[mySymbol].board.map(row => [...row])
-    player.shape.forEach((row, y) => {
-      row.forEach((value, x) => {
-        if (value !== 0) newMyBoard[y + player.pos.y][x + player.pos.x] = value
+    if (player.collided) {
+      const newMyBoard = gameState[mySymbol].board.map(row => [...row])
+      player.shape.forEach((row, y) => {
+        row.forEach((value, x) => {
+          if (value !== 0) newMyBoard[y + player.pos.y][x + player.pos.x] = value
+        })
       })
-    })
-    let linesCleared = 0
-    const sweptBoard = newMyBoard.reduce((acc, row) => {
-      if (row.every(cell => cell !== 0)) {
-        linesCleared++
-        acc.unshift(Array(COLS).fill(0))
-      } else {
-        acc.push(row)
-      }
-      return acc
-    }, [])
-    const garbageToSend = Math.max(0, linesCleared - 1)
-    setGameState(prev => {
-      let newOpponentBoard = prev[opponentSymbol].board
-      const isOpponentTopRowClear = prev[opponentSymbol].board[0]?.every(cell => cell === 0)
-      if (garbageToSend > 0 && !prev[opponentSymbol].gameOver && isOpponentTopRowClear) {
-        newOpponentBoard = prev[opponentSymbol].board.slice()
-        for (let i = 0; i < garbageToSend; i++) {
-          newOpponentBoard.shift()
-          const garbageRow = Array(COLS).fill(8)
-          garbageRow[Math.floor(Math.random() * COLS)] = 0
-          newOpponentBoard.push(garbageRow)
+
+      let linesCleared = 0
+      const sweptBoard = newMyBoard.reduce((acc, row) => {
+        if (row.every(cell => cell !== 0)) {
+          linesCleared++
+          acc.unshift(Array(COLS).fill(0))
+        } else {
+          acc.push(row)
         }
-      }
-      return {
-        ...prev,
-        [mySymbol]: { ...prev[mySymbol], board: sweptBoard, score: prev[mySymbol].score + linesCleared * 10 },
-        [opponentSymbol]: { ...prev[opponentSymbol], board: newOpponentBoard },
-      }
-    })
-    if (linesCleared > 0) {
-      setIsLocking(true)
-      const timeoutId = setTimeout(() => {
+        return acc
+      }, [])
+
+      const garbageToSend = Math.max(0, linesCleared - 1)
+
+      setGameState(prev => {
+        let newOpponentBoard = prev[opponentSymbol].board
+        const isOpponentTopRowClear = prev[opponentSymbol].board[0]?.every(cell => cell === 0)
+
+        if (garbageToSend > 0 && !prev[opponentSymbol].gameOver && isOpponentTopRowClear) {
+          newOpponentBoard = prev[opponentSymbol].board.slice()
+          for (let i = 0; i < garbageToSend; i++) {
+            newOpponentBoard.shift()
+            const garbageRow = Array(COLS).fill(8)
+            garbageRow[Math.floor(Math.random() * COLS)] = 0
+            newOpponentBoard.push(garbageRow)
+          }
+        }
+
+        return {
+          ...prev,
+          [mySymbol]: { ...prev[mySymbol], board: sweptBoard, score: prev[mySymbol].score + linesCleared * 10 },
+          [opponentSymbol]: { ...prev[opponentSymbol], board: newOpponentBoard },
+        }
+      })
+
+      if (linesCleared > 0) {
+        setIsLocking(true)
+        const timeoutId = setTimeout(() => {
+          resetPlayer()
+          setIsLocking(false)
+        }, 300)
+        return () => clearTimeout(timeoutId)
+      } else {
         resetPlayer()
-        setIsLocking(false)
-      }, 300)
-      return () => clearTimeout(timeoutId)
-    } else {
-      resetPlayer()
+      }
     }
   }, [player.collided, gameState, mySymbol, opponentSymbol, resetPlayer, setGameState])
 
@@ -302,7 +295,7 @@ export default function Tetris({
     }
 
     drawBoard(myCtx, gameState[mySymbol].board, player)
-    drawBoard(opponentCtx, gameState[opponentSymbol].board, gameState.playerStates?.[opponentSymbol] || null)
+    drawBoard(opponentCtx, gameState[opponentSymbol].board)
   }, [gameState, player, mySymbol, opponentSymbol])
 
   const handleRematchRequest = () => {
@@ -335,8 +328,6 @@ export default function Tetris({
     onRematchOffer(sessionId, mySymbol, 'declined')
     setRematchStatus(prev => ({ ...prev, status: 'declined' }))
   }
-
-  const [rematchStatus, setRematchStatus] = useStateTogether(`tetris-rematch-${sessionId}`, null)
 
   const handleKeyDown = useCallback(
     e => {
@@ -385,19 +376,30 @@ export default function Tetris({
   const iAmRematchRequester = rematchStatus && rematchStatus.by === mySymbol
   const iAmRematchReceiver = rematchStatus && rematchStatus.by === opponentSymbol
 
-  const nextShapeIndex = gameState.pieceSequences?.[mySymbol]?.[gameState.pieceIndexes?.[mySymbol]] || null
-  const nextShape = nextShapeIndex ? SHAPES[nextShapeIndex] : null
+  const nextShapeIndex =
+    gameState.pieceSequences?.[mySymbol]?.[gameState.pieceIndexes?.[mySymbol]] || 1
+  const nextShape = SHAPES[nextShapeIndex]
 
   return (
     <div className="flex flex-col items-center max-h-[90vh] overflow-y-auto">
       <div className="flex flex-row justify-center items-start gap-2 w-full px-2">
-        <div className="text-center flex flex-col items-center">
-          <h3 className="font-bold text-sm sm:text-base flex items-center gap-2">
+        <div
+          className="text-center flex flex-col items-center"
+          style={{
+            border: mySymbol === 'P1' ? '4px solid #3b82f6' : '1px solid #ccc',
+            padding: '4px',
+            borderRadius: '6px',
+          }}
+        >
+          <h3 className="font-bold text-sm sm:text-base flex items-center justify-center gap-2">
             {getPlayerName('P1')} {mySymbol === 'P1' ? '(You)' : ''}
             {mySymbol === 'P1' && nextShape && (
-              <div className="inline-block" style={{ width: 64, height: 48 }}>
+              <div className="inline-block" style={{ width: 64, height: 64 }}>
                 {nextShape.map((row, y) => (
-                  <div key={y} className="flex justify-center">
+                  <div
+                    key={y}
+                    style={{ display: 'flex', justifyContent: 'center', lineHeight: 0 }}
+                  >
                     {row.map((cell, x) => (
                       <div
                         key={x}
@@ -414,26 +416,31 @@ export default function Tetris({
               </div>
             )}
           </h3>
-          <div
-            className={`w-[40vw] max-w-[200px] border-4 ${
-              mySymbol === 'P1' ? 'border-blue-500' : 'border-gray-300'
-            } rounded-md overflow-hidden`}
-          >
-            <canvas
-              ref={mySymbol === 'P1' ? gameAreaRef : opponentAreaRef}
-              width={COLS * BLOCK_SIZE}
-              height={ROWS * BLOCK_SIZE}
-              style={{ background: '#000' }}
-            />
-          </div>
+          <canvas
+            ref={mySymbol === 'P1' ? gameAreaRef : opponentAreaRef}
+            width={COLS * BLOCK_SIZE}
+            height={ROWS * BLOCK_SIZE}
+            style={{ backgroundColor: '#000' }}
+          />
         </div>
-        <div className="text-center flex flex-col items-center">
-          <h3 className="font-bold text-sm sm:text-base flex items-center gap-2">
+
+        <div
+          className="text-center flex flex-col items-center"
+          style={{
+            border: mySymbol === 'P2' ? '4px solid #3b82f6' : '1px solid #ccc',
+            padding: '4px',
+            borderRadius: '6px',
+          }}
+        >
+          <h3 className="font-bold text-sm sm:text-base flex items-center justify-center gap-2">
             {getPlayerName('P2')} {mySymbol === 'P2' ? '(You)' : ''}
             {mySymbol === 'P2' && nextShape && (
-              <div className="inline-block" style={{ width: 64, height: 48 }}>
+              <div className="inline-block" style={{ width: 64, height: 64 }}>
                 {nextShape.map((row, y) => (
-                  <div key={y} className="flex justify-center">
+                  <div
+                    key={y}
+                    style={{ display: 'flex', justifyContent: 'center', lineHeight: 0 }}
+                  >
                     {row.map((cell, x) => (
                       <div
                         key={x}
@@ -450,51 +457,67 @@ export default function Tetris({
               </div>
             )}
           </h3>
-          <div
-            className={`w-[40vw] max-w-[200px] border-4 ${
-              mySymbol === 'P2' ? 'border-blue-500' : 'border-gray-300'
-            } rounded-md overflow-hidden`}
-          >
-            <canvas
-              ref={mySymbol === 'P2' ? gameAreaRef : opponentAreaRef}
-              width={COLS * BLOCK_SIZE}
-              height={ROWS * BLOCK_SIZE}
-              style={{ background: '#000' }}
-            />
-          </div>
+          <canvas
+            ref={mySymbol === 'P2' ? gameAreaRef : opponentAreaRef}
+            width={COLS * BLOCK_SIZE}
+            height={ROWS * BLOCK_SIZE}
+            style={{ backgroundColor: '#000' }}
+          />
         </div>
       </div>
-      <div className="mt-4">
-        {!opponentClosed && (
-          <GameControls onMove={movePlayer} onRotate={playerRotate} onDrop={dropPlayer} />
-        )}
-      </div>
-      <div className="mt-4">
-        {gameState.status === 'finished' && (
-          <div>
-            <p>
-              {gameState.winner === mySymbol ? 'You won!' : 'You lost!'}
-            </p>
-            {(!rematchStatus || rematchStatus.status === 'declined') && (
-              <button onClick={handleRematchRequest} disabled={opponentClosed}>
-                Request Rematch
-              </button>
-            )}
-            {rematchStatus && rematchStatus.status === 'pending' && iAmRematchReceiver && (
-              <div>
-                <p>Rematch requested by opponent</p>
-                <button onClick={handleAcceptRematch}>Accept</button>
-                <button onClick={handleDeclineRematch}>Decline</button>
-              </div>
-            )}
-            {rematchStatus && rematchStatus.status === 'accepted' && <p>Rematch accepted, restarting...</p>}
-            {rematchStatus && rematchStatus.status === 'declined' && <p>Rematch declined.</p>}
-          </div>
-        )}
-      </div>
-      <div className="mt-4">
-        <button onClick={onCloseGame}>Exit Game</button>
-      </div>
+
+      {gameState.status === 'finished' && (
+        <div className="mt-4 flex flex-col items-center gap-2">
+          <p className="font-bold text-lg">
+            {gameState.winner === mySymbol
+              ? 'You won!'
+              : gameState.winner === opponentSymbol
+              ? 'You lost!'
+              : 'Draw!'}
+          </p>
+          {!opponentClosed && (
+            <>
+              {!rematchStatus && (
+                <button
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                  onClick={handleRematchRequest}
+                >
+                  Request Rematch
+                </button>
+              )}
+              {iAmRematchReceiver && rematchStatus.status === 'pending' && (
+                <div className="flex gap-2">
+                  <button
+                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded"
+                    onClick={handleAcceptRematch}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded"
+                    onClick={handleDeclineRematch}
+                  >
+                    Decline
+                  </button>
+                </div>
+              )}
+              {iAmRematchRequester && rematchStatus.status === 'pending' && (
+                <p>Waiting for opponent to accept rematch...</p>
+              )}
+              {(rematchStatus.status === 'declined') && <p>Rematch declined.</p>}
+            </>
+          )}
+          {opponentClosed && <p>Your opponent has left the game.</p>}
+          <button
+            className="mt-2 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded"
+            onClick={onCloseGame}
+          >
+            Close Game
+          </button>
+        </div>
+      )}
+
+      <GameControls onMove={movePlayer} onRotate={playerRotate} onDrop={dropPlayer} />
     </div>
   )
 }
