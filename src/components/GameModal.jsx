@@ -19,9 +19,9 @@ export default function GameModal({ isOpen, onClose, gameType, players, sessionI
     };
 
     const getGameTitle = () => {
-        if (gameType === 'tictactoe') return 'Jogo da Velha';
-        if (gameType === 'tetris') return 'Batalha de Tetris';
-        return 'Jogo';
+        if (gameType === 'tictactoe') return 'Tic-Tac-Toe';
+        if (gameType === 'tetris') return 'Tetris Battle';
+        return 'Game';
     };
 
     return (
