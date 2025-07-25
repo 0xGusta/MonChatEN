@@ -101,22 +101,23 @@ export default function Tetris({ players, sessionId, myAddress, onRematchOffer, 
     }
     return false;
   }, []);
+  
+const pieceSequence = gameState?.[`${mySymbol}_pieceSequence`];
 
-  const resetPlayer = useCallback(() => {
-    const sequence = gameState?.[`${mySymbol}_pieceSequence`];
-    if (!sequence) return;
+const resetPlayer = useCallback(() => {
+    if (!pieceSequence) return;
 
-    const nextShapeIndex = sequence[pieceIndex % sequence.length];
+    const nextShapeIndex = pieceSequence[pieceIndex % pieceSequence.length];
     const newShape = SHAPES[nextShapeIndex];
     if (newShape) {
-      setPlayer({
-        pos: { x: Math.floor(COLS / 2) - Math.floor(newShape[0].length / 2), y: 0 },
-        shape: newShape,
-        collided: false,
-      });
-      setPieceIndex(prev => prev + 1);
+        setPlayer({
+            pos: { x: Math.floor(COLS / 2) - Math.floor(newShape[0].length / 2), y: 0 },
+            shape: newShape,
+            collided: false,
+        });
+        setPieceIndex(prev => prev + 1);
     }
-  }, [pieceIndex, gameState, mySymbol]);
+}, [pieceIndex, mySymbol, pieceSequence]);
 
   useEffect(() => {
     resetPlayer();
