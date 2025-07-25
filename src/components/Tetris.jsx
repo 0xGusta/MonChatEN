@@ -388,50 +388,54 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
     const areaRef = isOpponent ? opponentAreaRef : gameAreaRef;
     const playerData = gameState[symbol] || { board: createEmptyBoard(), score: 0, gameOver: false };
 
-    return (
-      <div className="text-center flex flex-col items-center">
-        <h3 className="font-bold text-sm sm:text-base mb-1">
-          {getPlayerName(symbol)} {!isOpponent ? '(You)' : ''}
-        </h3>
-        
-        <div className="w-[45vw] sm:w-[40vw] max-w-[200px]">
-          <canvas
-            ref={areaRef}
-            width={COLS * BLOCK_SIZE}
-            height={ROWS * BLOCK_SIZE}
-            className={`w-full h-auto border-2 bg-darkCard ${isOpponent ? 'border-gray-600' : 'border-monad'}`}
-          />
-        </div>
-
-        <div className="flex flex-row justify-around items-center w-full mt-2 px-1">
-          <div className="text-white text-xs sm:text-sm">Score: {playerData.score}</div>
-          {!isOpponent && (
-            <div className="flex flex-col items-center">
-              <h4 className="text-xs font-semibold">Next</h4>
-              <canvas
-                ref={nextPieceCanvasRef}
-                width={BLOCK_SIZE * 4}
-                height={BLOCK_SIZE * 2.5}
-                className="border border-gray-400 bg-darkCard"
-              />
-            </div>
-          )}
-        </div>
-
-        {playerData.gameOver && (
-          <div className="text-red-500 font-bold text-xl sm:text-2xl mt-1">GAME OVER</div>
-        )}
-      </div>
-    );
-  };
-
   return (
-    <div className="flex flex-col items-center max-h-[90vh] overflow-y-auto">
-      <div className="flex flex-col md:flex-row justify-center items-center md:items-start gap-y-4 md:gap-x-4 w-full px-2">
-        {renderPlayerArea(mySymbol, false)}
-        {renderPlayerArea(opponentSymbol, true)}
+    <div className="flex flex-col items-center max-h-[90vh] overflow-y-auto px-2">
+      <div className="flex flex-col md:flex-row justify-center items-center md:items-start gap-y-4 md:gap-x-4 w-full">
+        {[mySymbol, opponentSymbol].map((symbol, idx) => {
+          const isOpponent = idx === 1;
+          const playerData = gameState[symbol];
+          return (
+            <div key={symbol} className="text-center flex flex-col items-center">
+              <h3 className="font-bold text-sm sm:text-base mb-1">
+                {getPlayerName(symbol)} {!isOpponent ? '(You)' : ''}
+              </h3>
+  
+              <div className="w-full max-w-[200px]">
+                <div className="aspect-[10/20] w-full">
+                  <canvas
+                    ref={isOpponent ? opponentAreaRef : areaRef}
+                    width={COLS * BLOCK_SIZE}
+                    height={ROWS * BLOCK_SIZE}
+                    className={`w-full h-full border-2 bg-darkCard ${
+                      isOpponent ? 'border-gray-600' : 'border-monad'
+                    }`}
+                  />
+                </div>
+              </div>
+  
+              <div className="flex flex-row justify-around items-center w-full mt-2 px-1">
+                <div className="text-white text-xs sm:text-sm">Score: {playerData.score}</div>
+                {!isOpponent && (
+                  <div className="flex flex-col items-center">
+                    <h4 className="text-xs font-semibold">Next</h4>
+                    <canvas
+                      ref={nextPieceCanvasRef}
+                      width={BLOCK_SIZE * 4}
+                      height={BLOCK_SIZE * 2.5}
+                      className="border border-gray-400 bg-darkCard"
+                    />
+                  </div>
+                )}
+              </div>
+  
+              {playerData.gameOver && (
+                <div className="text-red-500 font-bold text-xl sm:text-2xl mt-1">GAME OVER</div>
+              )}
+            </div>
+          );
+        })}
       </div>
-
+  
       {gameState.status === 'playing' &&
         !gameState[mySymbol].gameOver &&
         !gameState[opponentSymbol].gameOver &&
@@ -440,7 +444,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
             <div className="block md:hidden mt-4 w-full max-w-xs">
               <GameControls onMove={movePlayer} onRotate={playerRotate} onDrop={dropPlayer} />
             </div>
-
+  
             <div className="hidden md:flex flex-col items-center mt-4 w-full max-w-xs text-white text-sm">
               <p className="mb-2 font-semibold">Controls:</p>
               <p>← / A : Move Left</p>
@@ -450,7 +454,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
             </div>
           </>
         )}
-
+  
       <div className="text-center mt-4">
         {opponentClosed ? (
           <>
