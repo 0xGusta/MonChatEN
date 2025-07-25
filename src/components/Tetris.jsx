@@ -273,8 +273,8 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
 
   const getPlayerName = (symbol) => {
     if (!players) return '';
-    if (symbol === 'P1') return players.challenger?.username || 'Jogador 1';
-    if (symbol === 'P2') return players.opponent?.username || 'Jogador 2';
+    if (symbol === 'P1') return players.challenger?.username || 'Player 1';
+    if (symbol === 'P2') return players.opponent?.username || 'Player 2';
     return '';
   };
 
@@ -285,59 +285,62 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
     <div className="flex flex-col items-center">
       <div className="flex flex-row justify-center items-start gap-2 w-full px-2">
         <div className="text-center flex flex-col items-center">
-          <h3 className="font-bold text-sm sm:text-base">{getPlayerName('P1')} {mySymbol === 'P1' ? '(Você)' : ''}</h3>
+          <h3 className="font-bold text-sm sm:text-base">{getPlayerName('P1')} {mySymbol === 'P1' ? '(You)' : ''}</h3>
           <div className="w-[40vw] max-w-[200px]">
             <canvas ref={mySymbol === 'P1' ? gameAreaRef : opponentAreaRef} width={COLS * BLOCK_SIZE} height={ROWS * BLOCK_SIZE} className="w-full h-auto border-2 border-monad bg-darkCard" />
           </div>
-          <div className="text-white text-sm">Pontos: {gameState.P1.score}</div>
-          {gameState.P1.gameOver && <div className="text-red-500 font-bold text-xl sm:text-2xl">FIM DE JOGO</div>}
+          <div className="text-white text-sm">Score: {gameState.P1.score}</div>
+          {gameState.P1.gameOver && <div className="text-red-500 font-bold text-xl sm:text-2xl">GAME OVER</div>}
         </div>
         <div className="text-center flex flex-col items-center">
-          <h3 className="font-bold text-sm sm:text-base">{getPlayerName('P2')} {mySymbol === 'P2' ? '(Você)' : ''}</h3>
+          <h3 className="font-bold text-sm sm:text-base">{getPlayerName('P2')} {mySymbol === 'P2' ? '(You)' : ''}</h3>
           <div className="w-[40vw] max-w-[200px]">
             <canvas ref={mySymbol === 'P2' ? gameAreaRef : opponentAreaRef} width={COLS * BLOCK_SIZE} height={ROWS * BLOCK_SIZE} className="w-full h-auto border-2 border-gray-600 bg-darkCard" />
           </div>
-          <div className="text-white text-sm">Pontos: {gameState.P2.score}</div>
-          {gameState.P2.gameOver && <div className="text-red-500 font-bold text-xl sm:text-2xl">FIM DE JOGO</div>}
-        </div>
-        <div className="block md:hidden fixed bottom-0 w-full p-4 z-50">
-          <GameControls onMove={movePlayer} onRotate={playerRotate} onDrop={dropPlayer} />
+          <div className="text-white text-sm">Score: {gameState.P2.score}</div>
+          {gameState.P2.gameOver && <div className="text-red-500 font-bold text-xl sm:text-2xl">GAME OVER</div>}
         </div>
       </div>
+
+      {!gameState[mySymbol].gameOver && !opponentClosed && (
+        <div className="block md:hidden mt-4">
+          <GameControls onMove={movePlayer} onRotate={playerRotate} onDrop={dropPlayer} />
+        </div>
+      )}
 
       <div className="text-center mt-4">
         {opponentClosed ? (
           <>
-            <p className="mb-2 text-lg font-semibold">O oponente saiu do jogo.</p>
-            <p className="mb-4">Você venceu por desistência.</p>
+            <p className="mb-2 text-lg font-semibold">The opponent has left the game.</p>
+            <p className="mb-4">You won by forfeit.</p>
             <button onClick={onCloseGame} className="btn btn-secondary">
-              Fechar
+              Close
             </button>
           </>
         ) : gameState.P1.gameOver || gameState.P2.gameOver ? (
           rematchStatus?.status === 'pending' ? (
             iAmRematchReceiver ? (
               <>
-                <p className="mb-2">{getPlayerName(opponentSymbol)} quer uma revanche!</p>
-                <button onClick={handleAcceptRematch} className="btn btn-primary mr-2">Aceitar</button>
-                <button onClick={handleDeclineRematch} className="btn btn-secondary">Recusar</button>
+                <p className="mb-2">{getPlayerName(opponentSymbol)} wants a rematch!</p>
+                <button onClick={handleAcceptRematch} className="btn btn-primary mr-2">Accept</button>
+                <button onClick={handleDeclineRematch} className="btn btn-secondary">Decline</button>
               </>
             ) : (
-              <p>Aguardando a resposta de {getPlayerName(opponentSymbol)}...</p>
+              <p>Waiting for {getPlayerName(opponentSymbol)} to respond...</p>
             )
           ) : rematchStatus?.status === 'declined' ? (
             <>
               <p className="mb-2">
                 {iAmRematchRequester
-                  ? `${getPlayerName(opponentSymbol)} recusou a revanche.`
-                  : `Você recusou a revanche.`}
+                  ? `${getPlayerName(opponentSymbol)} declined the rematch.`
+                  : `You declined the rematch.`}
               </p>
-              <button onClick={onCloseGame} className="btn btn-secondary">Fechar</button>
+              <button onClick={onCloseGame} className="btn btn-secondary">Close</button>
             </>
           ) : (
             <div className="flex gap-2 justify-center">
-              <button onClick={handleRematchRequest} className="btn btn-primary">Jogar Novamente?</button>
-              <button onClick={onCloseGame} className="btn btn-secondary">Fechar</button>
+              <button onClick={handleRematchRequest} className="btn btn-primary">Play Again?</button>
+              <button onClick={onCloseGame} className="btn btn-secondary">Close</button>
             </div>
           )
         ) : null}
