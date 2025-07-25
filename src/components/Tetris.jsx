@@ -28,6 +28,8 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
     P2: { board: createEmptyBoard(), score: 0, lines: 0, gameOver: false },
     P1_pieceSequence: Array.from({ length: 100 }, () => Math.floor(Math.random() * 7) + 1),
     P2_pieceSequence: Array.from({ length: 100 }, () => Math.floor(Math.random() * 7) + 1),
+    P1_piece: null,
+    P2_piece: null,
     status: 'playing',
     winner: null,
   });
@@ -119,6 +121,20 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   useEffect(() => {
     resetPlayer();
   }, []);
+  useEffect(() => {
+      if (player.shape && !gameState[mySymbol].gameOver) {
+          setGameState(prev => {
+
+              if (JSON.stringify(prev[mySymbol + '_piece']) === JSON.stringify(player)) {
+                  return prev;
+              }
+              return {
+                  ...prev,
+                  [`${mySymbol}_piece`]: player,
+              };
+          });
+      }
+  }, [player, mySymbol, gameState, setGameState]);
 
   const movePlayer = useCallback((dir) => {
     if (isLocking || !player.shape || gameState.status === 'finished' || opponentClosed) return;
@@ -313,7 +329,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
     };
 
     drawBoard(myCtx, gameState[mySymbol].board, player, blockSize);
-    drawBoard(opponentCtx, gameState[opponentSymbol].board, null, blockSize);
+     drawBoard(opponentCtx, gameState[opponentSymbol].board, opponentPiece, blockSize);
 
     const mySequence = gameState[mySymbol + '_pieceSequence'];
     if (mySequence && mySequence[pieceIndex]) {
