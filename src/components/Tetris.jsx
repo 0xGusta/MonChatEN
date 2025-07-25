@@ -427,7 +427,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
 
   return (
     <div className="flex flex-col items-center max-h-[90vh] overflow-y-auto">
-      <div className="flex flex-col md:flex-row justify-center items-center md:items-start gap-y-4 md:gap-x-4 w-full px-2">
+      <div className="flex flex-row justify-center items-center md:items-start gap-y-1 md:gap-x-1 w-full px-1">
         {renderPlayerArea(mySymbol, false)}
         {renderPlayerArea(opponentSymbol, true)}
       </div>
