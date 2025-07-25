@@ -229,32 +229,73 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
     const myCtx = gameAreaRef.current?.getContext('2d');
     const opponentCtx = opponentAreaRef.current?.getContext('2d');
     if (!myCtx || !opponentCtx) return;
-    const drawBoard = (ctx, board, currentPlayer = null) => {
-      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-      board.forEach((row, y) => {
-        row.forEach((value, x) => {
-          if (value !== 0) {
-            ctx.fillStyle = COLORS[value];
-            ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+  
+    const drawPieceWithBorder = (ctx, piece) => {
+      const { shape, pos, color } = piece;
+      ctx.fillStyle = color;
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  
+      shape.forEach((row, y) => {
+        row.forEach((cell, x) => {
+          if (cell !== 0) {
+            const drawX = (pos.x + x) * BLOCK_SIZE;
+            const drawY = (pos.y + y) * BLOCK_SIZE;
+            ctx.fillRect(drawX, drawY, BLOCK_SIZE, BLOCK_SIZE);
+            minX = Math.min(minX, drawX);
+            maxX = Math.max(maxX, drawX + BLOCK_SIZE);
+            minY = Math.min(minY, drawY);
+            maxY = Math.max(maxY, drawY + BLOCK_SIZE);
           }
         });
       });
-      if (currentPlayer?.shape) {
-        currentPlayer.shape.forEach((row, y) => {
-          row.forEach((value, x) => {
-            if (value !== 0) {
-              ctx.fillStyle = COLORS[value];
-              ctx.fillRect((currentPlayer.pos.x + x) * BLOCK_SIZE, (currentPlayer.pos.y + y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
-            }
-          });
-        });
+  
+      if (minX !== Infinity) {
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
       }
     };
-    drawBoard(myCtx, gameState[mySymbol].board, player);
-    drawBoard(opponentCtx, gameState[opponentSymbol].board);
+  
+    const drawBoard = (ctx, board, currentPiece = null, animatingRows = [], fade = false) => {
+      if (fade) {
+        ctx.globalAlpha = 0.4;
+      } else {
+        ctx.globalAlpha = 1;
+      }
+  
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  
+      board.forEach((row, y) => {
+        const isAnimating = animatingRows.includes(y);
+        ctx.globalAlpha = isAnimating ? 0.2 : 1;
+  
+        row.forEach((cell, x) => {
+          if (cell?.color) {
+            ctx.fillStyle = cell.color;
+            ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+          }
+        });
+      });
+  
+      ctx.globalAlpha = 1;
+  
+      if (currentPiece) {
+        drawPieceWithBorder(ctx, currentPiece);
+      }
+    };
+  
+    const playerBoard = gameState[mySymbol].board;
+    const opponentBoard = gameState[opponentSymbol].board;
+    const currentPiece = player?.shape ? {
+      shape: player.shape,
+      pos: player.pos,
+      color: COLORS[player.type]
+    } : null;
+  
+    const clearedRows = gameState[mySymbol].clearedRows ?? [];
+  
+    drawBoard(myCtx, playerBoard, currentPiece, clearedRows, gameState[mySymbol].gameOver);
+    drawBoard(opponentCtx, opponentBoard, null, [], gameState[opponentSymbol].gameOver);
   }, [gameState, player, mySymbol, opponentSymbol]);
 
   const handleRematchRequest = () => {
