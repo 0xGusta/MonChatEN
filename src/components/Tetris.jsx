@@ -4,7 +4,6 @@ import GameControls from './GameControls';
 
 const COLS = 10;
 const ROWS = 20;
-const BLOCK_SIZE = 20;
 
 const COLORS = [null, '#FF0D72', '#0DC2FF', '#0DFF72', '#F538FF', '#FF8E0D', '#FFE138', '#3877FF', '#6B7280'];
 const SHAPES = [
@@ -39,6 +38,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   const [isLocking, setIsLocking] = useState(false);
   const [isDropping, setIsDropping] = useState(false);
   const [isClearingLines, setIsClearingLines] = useState(false);
+  const [blockSize, setBlockSize] = useState(20);
   const dropTime = 1000;
 
   const gameAreaRef = useRef(null);
@@ -69,6 +69,19 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
       document.removeEventListener('visibilitychange', handleUnload);
     };
   }, [mySymbol, setPlayerStatus]);
+
+  useEffect(() => {
+    const calculateBlockSize = () => {
+      const gameContainer = gameAreaRef.current?.parentElement;
+      if (gameContainer) {
+        const containerWidth = gameContainer.offsetWidth;
+        setBlockSize(containerWidth / COLS);
+      }
+    };
+    calculateBlockSize();
+    window.addEventListener('resize', calculateBlockSize);
+    return () => window.removeEventListener('resize', calculateBlockSize);
+  }, []);
 
   const checkCollision = useCallback((playerPiece, board) => {
     if (!playerPiece.shape || !board) return true;
@@ -242,16 +255,16 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
     const nextPieceCtx = nextPieceCanvasRef.current?.getContext('2d');
     if (!myCtx || !opponentCtx) return;
 
-    const drawBoard = (ctx, board, currentPlayer = null) => {
+    const drawBoard = (ctx, board, currentPlayer = null, currentBlockSize) => {
       ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
       board.forEach((row, y) => {
         row.forEach((value, x) => {
           if (value !== 0) {
             ctx.fillStyle = COLORS[value];
-            ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+            ctx.fillRect(x * currentBlockSize, y * currentBlockSize, currentBlockSize, currentBlockSize);
             ctx.strokeStyle = '#000000';
             ctx.lineWidth = 1;
-            ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+            ctx.strokeRect(x * currentBlockSize, y * currentBlockSize, currentBlockSize, currentBlockSize);
           }
         });
       });
@@ -260,20 +273,20 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
         currentPlayer.shape.forEach((row, y) => {
           row.forEach((value, x) => {
             if (value !== 0) {
-              const px = (currentPlayer.pos.x + x) * BLOCK_SIZE;
-              const py = (currentPlayer.pos.y + y) * BLOCK_SIZE;
+              const px = (currentPlayer.pos.x + x) * currentBlockSize;
+              const py = (currentPlayer.pos.y + y) * currentBlockSize;
               ctx.fillStyle = COLORS[value];
-              ctx.fillRect(px, py, BLOCK_SIZE, BLOCK_SIZE);
+              ctx.fillRect(px, py, currentBlockSize, currentBlockSize);
               ctx.strokeStyle = '#000000';
               ctx.lineWidth = 1;
-              ctx.strokeRect(px, py, BLOCK_SIZE, BLOCK_SIZE);
+              ctx.strokeRect(px, py, currentBlockSize, currentBlockSize);
             }
           });
         });
       }
     };
 
-    const drawNextPiece = (ctx, shape) => {
+    const drawNextPiece = (ctx, shape, currentBlockSize) => {
         if (!ctx) return;
         ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
         if (!shape) return;
@@ -290,27 +303,27 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
             row.forEach((value, x) => {
                 if (value !== 0) {
                     ctx.fillStyle = color;
-                    ctx.fillRect((offsetX + x) * BLOCK_SIZE, (offsetY + y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    ctx.fillRect((offsetX + x) * currentBlockSize, (offsetY + y) * currentBlockSize, currentBlockSize, currentBlockSize);
                     ctx.strokeStyle = '#000000';
                     ctx.lineWidth = 1;
-                    ctx.strokeRect((offsetX + x) * BLOCK_SIZE, (offsetY + y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    ctx.strokeRect((offsetX + x) * currentBlockSize, (offsetY + y) * currentBlockSize, currentBlockSize, currentBlockSize);
                 }
             });
         });
     };
 
-    drawBoard(myCtx, gameState[mySymbol].board, player);
-    drawBoard(opponentCtx, gameState[opponentSymbol].board);
+    drawBoard(myCtx, gameState[mySymbol].board, player, blockSize);
+    drawBoard(opponentCtx, gameState[opponentSymbol].board, null, blockSize);
 
     const mySequence = gameState[mySymbol + '_pieceSequence'];
     if (mySequence && mySequence[pieceIndex]) {
         const nextShape = SHAPES[mySequence[pieceIndex]];
-        drawNextPiece(nextPieceCtx, nextShape);
+        drawNextPiece(nextPieceCtx, nextShape, blockSize);
     } else if (nextPieceCtx) {
         nextPieceCtx.clearRect(0, 0, nextPieceCtx.canvas.width, nextPieceCtx.canvas.height);
     }
 
-  }, [gameState, player, mySymbol, opponentSymbol, pieceIndex]);
+  }, [gameState, player, mySymbol, opponentSymbol, pieceIndex, blockSize]);
 
   const handleRematchRequest = () => {
     if (!players || opponentClosed) return;
@@ -397,8 +410,8 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
         <div className="w-[45vw] sm:w-[40vw] max-w-[200px]">
           <canvas
             ref={areaRef}
-            width={COLS * BLOCK_SIZE}
-            height={ROWS * BLOCK_SIZE}
+            width={COLS * blockSize}
+            height={ROWS * blockSize}
             className={`w-full h-auto border-2 bg-darkCard ${isOpponent ? 'border-gray-600' : 'border-monad'}`}
           />
         </div>
@@ -410,8 +423,8 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
               <h4 className="text-xs font-semibold">Next</h4>
               <canvas
                 ref={nextPieceCanvasRef}
-                width={BLOCK_SIZE * 4}
-                height={BLOCK_SIZE * 2.5}
+                width={blockSize * 4}
+                height={blockSize * 2.5}
                 className="border border-gray-400 bg-darkCard"
               />
             </div>
