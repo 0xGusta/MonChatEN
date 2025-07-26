@@ -36,8 +36,8 @@ export default function Tetris({ players, sessionId, myAddress }) {
   const opponentCanvasRef = useRef();
   const nextCanvasRef = useRef();
 
-  if (!gameState) {
-    return <p>Loading game...</p>;
+  if (!gameState || !gameState.P1 || !gameState.P2) {
+    return <p>Synchronizing game...</p>;
   }
 
   const updatePiece = useCallback((modifier) => {
@@ -97,6 +97,7 @@ export default function Tetris({ players, sessionId, myAddress }) {
 
   const resetPiece = useCallback(() => {
     setGameState(prev => {
+      if (!prev) return prev;
       const player = prev[mySymbol];
       if (!player) return prev;
       const data = { ...player };
@@ -118,6 +119,7 @@ export default function Tetris({ players, sessionId, myAddress }) {
 
   const drop = useCallback(() => {
     setGameState(prev => {
+      if (!prev) return prev;
       const player = prev[mySymbol];
       if (!player || player.gameOver || !player.piece) return prev;
       const data = { ...player };
