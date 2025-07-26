@@ -165,7 +165,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   }, [pieceSequences, mySymbol]);
 
   const resetPlayer = useCallback(() => {
-    if (!mySymbol || !sharedGameState[mySymbol]) return;
+    if (!mySymbol || !sharedGameState || !sharedGameState[mySymbol]) return;
     const currentPieceIndex = sharedGameState[mySymbol].pieceIndex;
     const newShape = getNextPiece(currentPieceIndex);
     
@@ -196,13 +196,13 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   }, [sharedGameState, mySymbol, getNextPiece, setSharedGameState]);
 
   useEffect(() => {
-    if (mySymbol && sharedGameState[mySymbol] && sharedGameState[mySymbol].pieceIndex === 0 && !localPlayer.shape) {
+    if (mySymbol && sharedGameState && sharedGameState[mySymbol] && sharedGameState[mySymbol].pieceIndex === 0 && !localPlayer.shape) {
       resetPlayer();
     }
   }, [sharedGameState, mySymbol, localPlayer.shape, resetPlayer]);
 
   const movePlayer = useCallback((dir) => {
-    if (isLocking || !localPlayer.shape || sharedGameState.status === 'finished' || opponentClosed || !mySymbol || !sharedGameState[mySymbol]) return;
+    if (isLocking || !localPlayer.shape || sharedGameState.status === 'finished' || opponentClosed || !mySymbol || !sharedGameState || !sharedGameState[mySymbol]) return;
     
     const board = sharedGameState[mySymbol].board;
     const newPos = { x: localPlayer.pos.x + dir, y: localPlayer.pos.y };
@@ -225,7 +225,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   }, [isLocking, localPlayer, sharedGameState, mySymbol, opponentClosed, checkCollision, setSharedGameState]);
 
   const dropPlayer = useCallback(() => {
-    if (isLocking || !localPlayer.shape || sharedGameState.status === 'finished' || opponentClosed || !mySymbol || !sharedGameState[mySymbol]) return;
+    if (isLocking || !localPlayer.shape || sharedGameState.status === 'finished' || opponentClosed || !mySymbol || !sharedGameState || !sharedGameState[mySymbol]) return;
     
     const board = sharedGameState[mySymbol].board;
     const newPos = { x: localPlayer.pos.x, y: localPlayer.pos.y + 1 };
@@ -259,7 +259,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   }, [isLocking, localPlayer, sharedGameState, mySymbol, opponentSymbol, opponentClosed, checkCollision, setSharedGameState]);
 
   const playerRotate = useCallback((dir) => {
-    if (isLocking || !localPlayer.shape || sharedGameState.status === 'finished' || opponentClosed || !mySymbol || !sharedGameState[mySymbol]) return;
+    if (isLocking || !localPlayer.shape || sharedGameState.status === 'finished' || opponentClosed || !mySymbol || !sharedGameState || !sharedGameState[mySymbol]) return;
     
     const clonedPlayer = JSON.parse(JSON.stringify(localPlayer));
     
@@ -297,7 +297,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
     if (localPlayer.collided && !isLocking) {
       setIsLocking(true);
       
-      if (!mySymbol || !sharedGameState[mySymbol]) return;
+      if (!mySymbol || !sharedGameState || !sharedGameState[mySymbol]) return;
 
       const newMyBoard = sharedGameState[mySymbol].board.map(row => [...row]);
       localPlayer.shape.forEach((row, y) => {
@@ -331,7 +331,6 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
           score: prev[mySymbol].score + (linesCleared * 10 * linesCleared), 
           lines: prev[mySymbol].lines + linesCleared
         },
-
       }));
       
       if (linesCleared > 0) {
@@ -363,7 +362,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   }, [dropPlayer, dropTime]);
 
   useEffect(() => {
-    if (mySymbol && sharedGameState[mySymbol] && sharedGameState.status === 'playing' && !sharedGameState[mySymbol].gameOver) {
+    if (mySymbol && sharedGameState && sharedGameState[mySymbol] && sharedGameState.status === 'playing' && !sharedGameState[mySymbol].gameOver) {
       requestRef.current = requestAnimationFrame(animate);
     } else {
       if (requestRef.current) {
@@ -382,7 +381,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
     const opponentCtx = opponentAreaRef.current?.getContext('2d');
     const nextPieceCtx = nextPieceCanvasRef.current?.getContext('2d');
     
-    if (!myCtx || !opponentCtx || !mySymbol || !opponentSymbol || !sharedGameState[mySymbol] || !sharedGameState[opponentSymbol]) return;
+    if (!myCtx || !opponentCtx || !mySymbol || !opponentSymbol || !sharedGameState || !sharedGameState[mySymbol] || !sharedGameState[opponentSymbol]) return;
 
     const drawBoard = (ctx, board, currentPlayer = null, currentBlockSize) => {
       ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -479,7 +478,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   };
 
   const handleKeyDown = useCallback((e) => {
-    if (isLocking || sharedGameState.status === 'finished' || opponentClosed || !mySymbol || !sharedGameState[mySymbol]) return;
+    if (isLocking || sharedGameState.status === 'finished' || opponentClosed || !mySymbol || !sharedGameState || !sharedGameState[mySymbol]) return;
     
     const key = e.key.toLowerCase();
     if (['a', 'arrowleft', 'd', 'arrowright', 's', 'arrowdown', 'w', 'arrowup', 'q', 'e'].includes(key)) {
@@ -540,8 +539,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   const iAmRematchReceiver = rematchStatus && rematchStatus.by === opponentSymbol;
 
   const renderPlayerArea = (symbol, isOpponent = false) => {
-
-    const playerData = sharedGameState[symbol] || { board: createEmptyBoard(), score: 0, gameOver: false };
+    const playerData = (sharedGameState && sharedGameState[symbol]) || { board: createEmptyBoard(), score: 0, gameOver: false };
 
     return (
       <div className="text-center flex flex-col items-center">
