@@ -337,12 +337,12 @@ export default function Tetris({ sessionId, myAddress }) {
 
             <div className="controls-info mt-4">
                 {isMobile() ? (
-                    <div className="mobile-controls grid grid-cols-3 gap-2 p-2 bg-gray-800 rounded-lg">
-                        <button className="btn-control" onClick={() => move(-1)}>◀</button>
-                        <button className="btn-control" onClick={() => move(1)}>▶</button>
-                        <button className="btn-control" onClick={() => playerRotate(board)}>↺</button>
-                        <button className="btn-control col-span-3" onClick={hardDrop}>DROP</button>
-                        <button className="btn-control col-span-3" onClick={drop}>▼</button>
+                    <div className="mobile-controls grid grid-cols-3 gap-2 p-2 bg-gray-800 rounded-lg max-w-xs mx-auto">
+                      <button className="btn-control" onClick={() => move(-1)}>◀</button>
+                      <button className="btn-control" onClick={() => playerRotate(board)}>↺</button>
+                      <button className="btn-control" onClick={() => move(1)}>▶</button>
+                      <button className="btn-control col-span-3" onClick={drop}>▼</button>
+                      <button className="btn-control col-span-3" onClick={hardDrop}>DROP</button>
                     </div>
                 ) : (
                     <div className="pc-controls bg-gray-800 p-3 rounded-lg text-sm">
