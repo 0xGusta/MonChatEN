@@ -6,7 +6,7 @@ const BOARD_HEIGHT = 20;
 
 const isMobile = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-const BLOCK_SIZE = isMobile() ? 14 : 20;
+const BLOCK_SIZE = isMobile() ? 10 : 20;
 
 const TETROMINOS = {
     'I': { shape: [[1, 1, 1, 1]], color: '#00FFFF' },
