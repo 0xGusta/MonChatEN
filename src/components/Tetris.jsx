@@ -31,7 +31,6 @@ const getRandomTetromino = (seed) => {
     return JSON.parse(JSON.stringify(TETROMINOS[key]));
 };
 
-
 const useGameLoop = (callback, speed) => {
     const savedCallback = useRef();
 
@@ -50,35 +49,63 @@ const useGameLoop = (callback, speed) => {
     }, [speed]);
 };
 
-export default function Tetris({ sessionId, myAddress }) {
+const GameResultDisplay = ({ status, winner, onExit }) => {
+    let message = "";
+    if (status === 'closed') {
+        message = "Opponent has left the game.";
+    } else if (winner) {
+        message = winner === 'draw' ? "It's a Draw!" : `Winner: ${winner}!`;
+    }
+
+    return (
+        <div className="game-over-overlay">
+            <div className="game-over-box">
+                <h2>Game Over</h2>
+                <p>{message}</p>
+                <button onClick={onExit} className="btn btn-primary mt-4">Exit</button>
+            </div>
+        </div>
+    );
+};
+
+export default function Tetris({ sessionId, myAddress, onGameEnd }) {
     const mySeed = parseInt(myAddress.slice(2, 10), 16);
 
     const [board, setBoard] = useState(createEmptyBoard());
-    const [player, setPlayer] = useState({
-        pos: { x: 0, y: 0 },
-        tetromino: null,
-        collided: false,
-    });
+    const [player, setPlayer] = useState({ pos: { x: 0, y: 0 }, tetromino: null, collided: false });
     const [nextTetromino, setNextTetromino] = useState(null);
     const [score, setScore] = useState(0);
-    const [gameOver, setGameOver] = useState(false);
     const [gameSpeed, setGameSpeed] = useState(1000);
     const [pieceSeed, setPieceSeed] = useState(mySeed);
-    const [sharedState, setSharedState] = useStateTogether(`tetris-game-${sessionId}`, {});
+    const [gameStatus, setGameStatus] = useStateTogether(`tetris-status-${sessionId}`, 'playing');
+    const [winner, setWinner] = useState(null);
+
+    const [sharedState, setSharedState] = useStateTogether(`tetris-players-${sessionId}`, {});
+    
+    const handleCloseGame = useCallback(() => {
+        setGameStatus('closed');
+
+        if (onGameEnd) {
+            onGameEnd(sessionId, 'closed');
+        }
+    }, [setGameStatus, onGameEnd, sessionId]);
 
     useEffect(() => {
-        setSharedState(prev => ({
-            ...prev,
-            [myAddress]: { board, player, score, nextTetromino, gameOver }
-        }));
-    }, [board, player, score, nextTetromino, gameOver, myAddress, setSharedState]);
 
-    const opponentAddress = Object.keys(sharedState).find(addr => addr !== myAddress);
+        if (gameStatus === 'playing') {
+             setSharedState(prev => ({
+                ...prev,
+                [myAddress]: { board, player, score }
+            }));
+        }
+    }, [board, player, score, myAddress, setSharedState, gameStatus]);
+    
+    const opponentAddress = Object.keys(sharedState).find(addr => addr !== myAddress && sharedState[addr]);
     const opponentData = opponentAddress ? sharedState[opponentAddress] : null;
 
     const opponentBoard = opponentData?.board || createEmptyBoard();
     const opponentPlayer = opponentData?.player;
-    const opponentScore = opponentData?.score || 0;
+    const opponentScore = opponentData?.score ?? 0;
 
     const boardCanvasRef = useRef(null);
     const nextCanvasRef = useRef(null);
@@ -96,12 +123,33 @@ export default function Tetris({ sessionId, myAddress }) {
             collided: false,
         });
     }, [nextTetromino, pieceSeed]);
+    
+    const setGameOver = useCallback(() => {
+        setGameStatus('gameOver');
+        setGameSpeed(null);
+    }, [setGameStatus]);
 
     useEffect(() => {
-        if (!player.tetromino) {
+        if (gameStatus === 'gameOver' && !winner) {
+            if (score > opponentScore) {
+                setWinner('You');
+            } else if (opponentScore > score) {
+                setWinner('Opponent');
+            } else {
+                setWinner('draw');
+            }
+        }
+        if (gameStatus === 'closed') {
+            setGameSpeed(null);
+        }
+    }, [gameStatus, score, opponentScore, winner]);
+
+
+    useEffect(() => {
+        if (!player.tetromino && gameStatus === 'playing') {
             resetPlayer();
         }
-    }, [player.tetromino, resetPlayer]);
+    }, [player.tetromino, resetPlayer, gameStatus]);
 
     const isColliding = (p, b, { x: moveX, y: moveY }) => {
         if (!p.tetromino) return false;
@@ -118,15 +166,14 @@ export default function Tetris({ sessionId, myAddress }) {
         }
         return false;
     };
-    
+
     const rotate = (matrix) => {
-
         const transposed = matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
-
         return transposed.map(row => row.reverse());
     };
 
     const playerRotate = (board) => {
+        if (gameStatus !== 'playing') return;
         const clonedPlayer = JSON.parse(JSON.stringify(player));
         clonedPlayer.tetromino.shape = rotate(clonedPlayer.tetromino.shape);
 
@@ -156,14 +203,14 @@ export default function Tetris({ sessionId, myAddress }) {
             updatePlayerPos({ x: 0, y: 1, collided: false });
         } else {
             if (player.pos.y < 1) {
-                setGameOver(true);
-                setGameSpeed(null);
+                setGameOver();
             }
             setPlayer(prev => ({ ...prev, collided: true }));
         }
-    }, [board, player]);
+    }, [board, player, setGameOver]);
 
     const hardDrop = () => {
+        if (gameStatus !== 'playing') return;
         let y = 0;
         while (!isColliding(player, board, { x: 0, y: y + 1 })) {
             y++;
@@ -172,6 +219,7 @@ export default function Tetris({ sessionId, myAddress }) {
     };
 
     const move = (dir) => {
+        if (gameStatus !== 'playing') return;
         if (!isColliding(player, board, { x: dir, y: 0 })) {
             updatePlayerPos({ x: dir, y: 0, collided: false });
         }
@@ -192,9 +240,8 @@ export default function Tetris({ sessionId, myAddress }) {
                 });
             });
 
-            let linesCleared = 0;
             const clearedBoard = newBoard.filter(row => !row.every(cell => cell[0] !== 0));
-            linesCleared = BOARD_HEIGHT - clearedBoard.length;
+            const linesCleared = BOARD_HEIGHT - clearedBoard.length;
 
             if (linesCleared > 0) {
                 const newLines = Array.from({ length: linesCleared }, () => Array(BOARD_WIDTH).fill([0, '#000000']));
@@ -205,10 +252,10 @@ export default function Tetris({ sessionId, myAddress }) {
             }
             resetPlayer();
         }
-    }, [player.collided, board, player.tetromino, player.pos.x, player.pos.y, resetPlayer]);
+    }, [player.collided, board, player.tetromino, player.pos, resetPlayer]);
 
     useGameLoop(() => {
-        if (!gameOver) {
+        if (gameStatus === 'playing') {
             drop();
         }
     }, gameSpeed);
@@ -252,7 +299,6 @@ export default function Tetris({ sessionId, myAddress }) {
             tetromino.shape.forEach((row, y) => {
                 row.forEach((value, x) => {
                     if (value !== 0) {
-
                         const offsetX = (canvas.width - tetromino.shape[0].length * BLOCK_SIZE) / 2;
                         const offsetY = (canvas.height - tetromino.shape.length * BLOCK_SIZE) / 2;
                         context.fillRect(offsetX + x * BLOCK_SIZE, offsetY + y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
@@ -262,33 +308,16 @@ export default function Tetris({ sessionId, myAddress }) {
         }
     }, []);
 
-    useEffect(() => {
-        if (boardCanvasRef.current) draw(boardCanvasRef.current, board, player);
-    }, [board, player, draw]);
-
-    useEffect(() => {
-        if (opponentBoardCanvasRef.current) draw(opponentBoardCanvasRef.current, opponentBoard, opponentPlayer);
-    }, [opponentBoard, opponentPlayer, draw]);
-
-    useEffect(() => {
-        if (nextCanvasRef.current) drawNext(nextCanvasRef.current, nextTetromino);
-    }, [nextTetromino, drawNext]);
+    useEffect(() => { if (boardCanvasRef.current) draw(boardCanvasRef.current, board, player); }, [board, player, draw]);
+    useEffect(() => { if (opponentBoardCanvasRef.current) draw(opponentBoardCanvasRef.current, opponentBoard, opponentPlayer); }, [opponentBoard, opponentPlayer, draw]);
+    useEffect(() => { if (nextCanvasRef.current) drawNext(nextCanvasRef.current, nextTetromino); }, [nextTetromino, drawNext]);
 
     const handleKeyDown = useCallback((e) => {
-        if (gameOver) return;
-        const keyMap = {
-            'ArrowLeft': () => move(-1),
-            'ArrowRight': () => move(1),
-            'ArrowDown': drop,
-            'ArrowUp': () => playerRotate(board),
-            ' ': hardDrop,
-        };
+        if (gameStatus !== 'playing') return;
+        const keyMap = { 'ArrowLeft': () => move(-1), 'ArrowRight': () => move(1), 'ArrowDown': drop, 'ArrowUp': () => playerRotate(board), ' ': hardDrop };
         const action = keyMap[e.key];
-        if (action) {
-            e.preventDefault();
-            action();
-        }
-    }, [gameOver, move, drop, playerRotate, hardDrop, board]);
+        if (action) { e.preventDefault(); action(); }
+    }, [gameStatus, move, drop, playerRotate, hardDrop, board]);
     
     useEffect(() => {
         window.addEventListener('keydown', handleKeyDown);
@@ -296,29 +325,20 @@ export default function Tetris({ sessionId, myAddress }) {
     }, [handleKeyDown]);
 
     return (
-        <div className="tetris-container flex flex-col items-center p-2 text-white">
+        <div className="tetris-container flex flex-col items-center p-2 text-white relative">
+
+            {gameStatus !== 'playing' && <GameResultDisplay status={gameStatus} winner={winner} onExit={handleCloseGame} />}
+            
+            <button onClick={handleCloseGame} className="absolute top-2 right-2 btn-sm btn-circle">✕</button>
 
             <div className="boards-container flex flex-row justify-center items-start gap-2 md:gap-4">
-
                 <div className="game-area relative flex flex-col items-center">
                     <h3 className="text-lg mb-1">You</h3>
-                    <canvas
-                        ref={boardCanvasRef}
-                        width={BOARD_WIDTH * BLOCK_SIZE}
-                        height={BOARD_HEIGHT * BLOCK_SIZE}
-                        className="border-2 border-gray-500"
-                    />
-                    {gameOver && <div className="game-over-text">GAME OVER</div>}
+                    <canvas ref={boardCanvasRef} width={BOARD_WIDTH * BLOCK_SIZE} height={BOARD_HEIGHT * BLOCK_SIZE} className="border-2 border-gray-500" />
                 </div>
-
                 <div className="opponent-area flex flex-col items-center">
                     <h3 className="text-lg mb-1">Opponent</h3>
-                    <canvas
-                        ref={opponentBoardCanvasRef}
-                        width={BOARD_WIDTH * BLOCK_SIZE}
-                        height={BOARD_HEIGHT * BLOCK_SIZE}
-                        className="border-2 border-gray-700"
-                    />
+                    <canvas ref={opponentBoardCanvasRef} width={BOARD_WIDTH * BLOCK_SIZE} height={BOARD_HEIGHT * BLOCK_SIZE} className="border-2 border-gray-700" />
                 </div>
             </div>
 
@@ -326,12 +346,7 @@ export default function Tetris({ sessionId, myAddress }) {
                 <p>Score: {score}</p>
                 <div className="flex flex-col items-center">
                     <p>Next:</p>
-                    <canvas
-                        ref={nextCanvasRef}
-                        width={4 * BLOCK_SIZE}
-                        height={4 * BLOCK_SIZE}
-                        className="border border-gray-600 mt-1"
-                    />
+                    <canvas ref={nextCanvasRef} width={4 * BLOCK_SIZE} height={4 * BLOCK_SIZE} className="border border-gray-600 mt-1" />
                 </div>
                 <p>Opponent Score: {opponentScore}</p>
             </div>
