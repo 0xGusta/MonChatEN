@@ -1,650 +1,359 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useStateTogether } from 'react-together';
-import GameControls from './GameControls';
 
-const COLS = 10;
-const ROWS = 20;
+const BOARD_WIDTH = 10;
+const BOARD_HEIGHT = 20;
+const BLOCK_SIZE = 20;
 
-const COLORS = [null, '#FF0D72', '#0DC2FF', '#0DFF72', '#F538FF', '#FF8E0D', '#FFE138', '#3877FF', '#6B7280'];
-const SHAPES = [
-  null,
-  [[1, 1, 1], [0, 1, 0]],
-  [[2, 2, 2, 2]],
-  [[0, 3, 3], [3, 3, 0]],
-  [[4, 4, 0], [0, 4, 4]],
-  [[5, 0, 0], [5, 5, 5]],
-  [[0, 0, 6], [6, 6, 6]],
-  [[7, 7], [7, 7]],
-];
-
-const createEmptyBoard = () => Array.from({ length: ROWS }, () => Array(COLS).fill(0));
-
-const generatePieceSequence = (seed, length = 100) => {
-  const sequence = [];
-  let currentSeed = seed;
-  
-  for (let i = 0; i < length; i++) {
-    currentSeed = (currentSeed * 1664525 + 1013904223) % Math.pow(2, 32);
-    sequence.push((Math.abs(currentSeed) % 7) + 1);
-  }
-  
-  return sequence;
+const TETROMINOS = {
+    'I': { shape: [[1, 1, 1, 1]], color: '#00FFFF' },
+    'J': { shape: [[1, 0, 0], [1, 1, 1]], color: '#0000FF' },
+    'L': { shape: [[0, 0, 1], [1, 1, 1]], color: '#FFA500' },
+    'O': { shape: [[1, 1], [1, 1]], color: '#FFFF00' },
+    'S': { shape: [[0, 1, 1], [1, 1, 0]], color: '#00FF00' },
+    'T': { shape: [[0, 1, 0], [1, 1, 1]], color: '#800080' },
+    'Z': { shape: [[1, 1, 0], [0, 1, 1]], color: '#FF0000' }
 };
 
-export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRematchOffer, playerStatus, setPlayerStatus, onCloseGame }) {
-  const mySymbol = useMemo(() => {
-    if (!players || !myAddress) return null;
-    return players.challenger?.address.toLowerCase() === myAddress.toLowerCase() ? 'P1' : 'P2';
-  }, [players, myAddress]);
+const TETROMINO_KEYS = Object.keys(TETROMINOS);
 
-  const opponentSymbol = useMemo(() => {
-    if (!mySymbol) return null;
-    return mySymbol === 'P1' ? 'P2' : 'P1';
-  }, [mySymbol]);
+const createEmptyBoard = () => Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill([0, '#000000']));
 
-  const gameSeed = useMemo(() => {
-    return sessionId ? parseInt(sessionId.slice(-8), 16) : Date.now();
-  }, [sessionId]);
+const getRandomTetromino = (seed) => {
 
-  const initialSharedGameState = useMemo(() => ({
-    P1: { 
-      board: createEmptyBoard(), 
-      score: 0, 
-      lines: 0, 
-      gameOver: false,
-      currentPiece: null,
-      pieceIndex: 0
-    },
-    P2: { 
-      board: createEmptyBoard(), 
-      score: 0, 
-      lines: 0, 
-      gameOver: false,
-      currentPiece: null,
-      pieceIndex: 0
-    },
-    status: 'playing',
-    winner: null,
-    gameStartTime: Date.now()
-  }), []);
-
-  const [sharedGameState, setSharedGameState] = useStateTogether(`tetris-shared-${sessionId}`, initialSharedGameState);
-
-  const [rematchStatus, setRematchStatus] = useStateTogether(`tetris-rematch-${sessionId}`, null);
-  
-  const [localPlayer, setLocalPlayer] = useState({ pos: { x: 0, y: 0 }, shape: null, collided: false });
-  const [isLocking, setIsLocking] = useState(false);
-  const [isDropping, setIsDropping] = useState(false);
-  const [isClearingLines, setIsClearingLines] = useState(false);
-  const [blockSize, setBlockSize] = useState(20);
-
-  const gameAreaRef = useRef(null);
-  const opponentAreaRef = useRef(null);
-  const nextPieceCanvasRef = useRef(null);
-  const requestRef = useRef();
-  const lastTimeRef = useRef(0);
-  const dropCounterRef = useRef(0);
-
-  const dropTime = 1000;
-  
-  const opponentClosed = playerStatus[opponentSymbol] === 'closed';
-
-  const pieceSequences = useMemo(() => ({
-    P1: generatePieceSequence(gameSeed, 200),
-    P2: generatePieceSequence(gameSeed + 1, 200)
-  }), [gameSeed]);
-
-  useEffect(() => {
-    if (mySymbol) {
-      setPlayerStatus(prev => ({ ...prev, [mySymbol]: 'online' }));
-    }
-  }, [mySymbol, setPlayerStatus]);
-
-  useEffect(() => {
-    const handleUnload = () => {
-      if (mySymbol) {
-        setPlayerStatus(prev => ({ ...prev, [mySymbol]: 'closed' }));
-      }
+    const pseudoRandom = () => {
+        let x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
     };
+    const key = TETROMINO_KEYS[Math.floor(pseudoRandom() * TETROMINO_KEYS.length)];
+    return TETROMINOS[key];
+};
 
-    window.addEventListener('beforeunload', handleUnload);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') handleUnload();
-    });
+const isMobile = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-    return () => {
-      window.removeEventListener('beforeunload', handleUnload);
-      document.removeEventListener('visibilitychange', handleUnload);
-    };
-  }, [mySymbol, setPlayerStatus]);
+const useGameLoop = (callback, speed) => {
+    const savedCallback = useRef();
 
-  useEffect(() => {
-    const calculateBlockSize = () => {
-      const gameContainer = gameAreaRef.current?.parentElement;
-      if (gameContainer) {
-        const containerWidth = gameContainer.offsetWidth;
-        setBlockSize(containerWidth / COLS);
-      }
-    };
-    calculateBlockSize();
-    window.addEventListener('resize', calculateBlockSize);
-    return () => window.removeEventListener('resize', calculateBlockSize);
-  }, []);
+    useEffect(() => {
+        savedCallback.current = callback;
+    }, [callback]);
 
-  const checkCollision = useCallback((playerPiece, board) => {
-    if (!playerPiece.shape || !board) return true;
-    
-    const { shape, pos } = playerPiece;
-    
-    for (let y = 0; y < shape.length; y++) {
-      for (let x = 0; x < shape[y].length; x++) {
-        if (shape[y][x] !== 0) {
-          const boardY = y + pos.y;
-          const boardX = x + pos.x;
-          
-          if (boardY < 0 || boardY >= ROWS || boardX < 0 || boardX >= COLS) {
-            return true;
-          }
-          
-          if (board[boardY][boardX] !== 0) {
-            return true;
-          }
+    useEffect(() => {
+        function tick() {
+            savedCallback.current();
         }
-      }
-    }
-    return false;
-  }, []);
+        if (speed !== null) {
+            let id = setInterval(tick, speed);
+            return () => clearInterval(id);
+        }
+    }, [speed]);
+};
 
-  const getNextPiece = useCallback((pieceIndex) => {
-    if (!mySymbol || !pieceSequences[mySymbol]) return null;
-    const sequence = pieceSequences[mySymbol];
-    if (!sequence || pieceIndex >= sequence.length) return null;
-    
-    const shapeIndex = sequence[pieceIndex];
-    return SHAPES[shapeIndex];
-  }, [pieceSequences, mySymbol]);
+export default function Tetris({ sessionId, myAddress }) {
 
-  const resetPlayer = useCallback(() => {
-    if (!mySymbol || !sharedGameState || !sharedGameState[mySymbol]) return;
-    const currentPieceIndex = sharedGameState[mySymbol].pieceIndex;
-    const newShape = getNextPiece(currentPieceIndex);
-    
-    if (newShape) {
-      const newPlayer = {
-        pos: { 
-          x: Math.floor(COLS / 2) - Math.floor(newShape[0].length / 2), 
-          y: 0 
-        },
-        shape: newShape,
+    const mySeed = parseInt(myAddress.slice(2, 10), 16);
+
+    const [board, setBoard] = useState(createEmptyBoard());
+    const [player, setPlayer] = useState({
+        pos: { x: 0, y: 0 },
+        tetromino: null,
         collided: false,
-      };
-      
-      setLocalPlayer(newPlayer);
-      
-      setSharedGameState(prev => ({
-        ...prev,
-        [mySymbol]: {
-          ...prev[mySymbol],
-          currentPiece: {
-            shape: newShape,
-            pos: newPlayer.pos
-          },
-          pieceIndex: currentPieceIndex + 1
-        }
-      }));
-    }
-  }, [sharedGameState, mySymbol, getNextPiece, setSharedGameState]);
-
-  useEffect(() => {
-    if (mySymbol && sharedGameState && sharedGameState[mySymbol] && sharedGameState[mySymbol].pieceIndex === 0 && !localPlayer.shape) {
-      resetPlayer();
-    }
-  }, [sharedGameState, mySymbol, localPlayer.shape, resetPlayer]);
-
-  const movePlayer = useCallback((dir) => {
-    if (isLocking || !localPlayer.shape || sharedGameState.status === 'finished' || opponentClosed || !mySymbol || !sharedGameState || !sharedGameState[mySymbol]) return;
-    
-    const board = sharedGameState[mySymbol].board;
-    const newPos = { x: localPlayer.pos.x + dir, y: localPlayer.pos.y };
-    
-    if (!checkCollision({ ...localPlayer, pos: newPos }, board)) {
-      const newPlayer = { ...localPlayer, pos: newPos };
-      setLocalPlayer(newPlayer);
-      
-      setSharedGameState(prev => ({
-        ...prev,
-        [mySymbol]: {
-          ...prev[mySymbol],
-          currentPiece: {
-            ...prev[mySymbol].currentPiece,
-            pos: newPos
-          }
-        }
-      }));
-    }
-  }, [isLocking, localPlayer, sharedGameState, mySymbol, opponentClosed, checkCollision, setSharedGameState]);
-
-  const dropPlayer = useCallback(() => {
-    if (isLocking || !localPlayer.shape || sharedGameState.status === 'finished' || opponentClosed || !mySymbol || !sharedGameState || !sharedGameState[mySymbol]) return;
-    
-    const board = sharedGameState[mySymbol].board;
-    const newPos = { x: localPlayer.pos.x, y: localPlayer.pos.y + 1 };
-    
-    if (!checkCollision({ ...localPlayer, pos: newPos }, board)) {
-      const newPlayer = { ...localPlayer, pos: newPos };
-      setLocalPlayer(newPlayer);
-      
-      setSharedGameState(prev => ({
-        ...prev,
-        [mySymbol]: {
-          ...prev[mySymbol],
-          currentPiece: {
-            ...prev[mySymbol].currentPiece,
-            pos: newPos
-          }
-        }
-      }));
-    } else {
-      if (localPlayer.pos.y < 1) {
-        setSharedGameState(prev => ({
-          ...prev,
-          status: 'finished',
-          winner: opponentSymbol,
-          [mySymbol]: { ...prev[mySymbol], gameOver: true },
-        }));
-        return;
-      }
-      setLocalPlayer(prev => ({ ...prev, collided: true }));
-    }
-  }, [isLocking, localPlayer, sharedGameState, mySymbol, opponentSymbol, opponentClosed, checkCollision, setSharedGameState]);
-
-  const playerRotate = useCallback((dir) => {
-    if (isLocking || !localPlayer.shape || sharedGameState.status === 'finished' || opponentClosed || !mySymbol || !sharedGameState || !sharedGameState[mySymbol]) return;
-    
-    const clonedPlayer = JSON.parse(JSON.stringify(localPlayer));
-    
-    const rotate = (matrix) => {
-      const transposed = matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
-      return dir > 0 ? transposed.map(row => row.reverse()) : transposed.reverse();
-    };
-    
-    clonedPlayer.shape = rotate(clonedPlayer.shape);
-    
-    let offset = 1;
-    const board = sharedGameState[mySymbol].board;
-    
-    while (checkCollision(clonedPlayer, board)) {
-      clonedPlayer.pos.x += offset;
-      offset = -(offset + (offset > 0 ? 1 : -1));
-      if (Math.abs(offset) > clonedPlayer.shape[0].length) return;
-    }
-    
-    setLocalPlayer(clonedPlayer);
-    
-    setSharedGameState(prev => ({
-      ...prev,
-      [mySymbol]: {
-        ...prev[mySymbol],
-        currentPiece: {
-          shape: clonedPlayer.shape,
-          pos: clonedPlayer.pos
-        }
-      }
-    }));
-  }, [isLocking, localPlayer, sharedGameState, mySymbol, opponentClosed, checkCollision, setSharedGameState]);
-
-  useEffect(() => {
-    if (localPlayer.collided && !isLocking) {
-      setIsLocking(true);
-      
-      if (!mySymbol || !sharedGameState || !sharedGameState[mySymbol]) return;
-
-      const newMyBoard = sharedGameState[mySymbol].board.map(row => [...row]);
-      localPlayer.shape.forEach((row, y) => {
-        row.forEach((value, x) => {
-          if (value !== 0) {
-            const boardY = y + localPlayer.pos.y;
-            const boardX = x + localPlayer.pos.x;
-            if (boardY >= 0 && boardY < ROWS && boardX >= 0 && boardX < COLS) {
-              newMyBoard[boardY][boardX] = value;
-            }
-          }
-        });
-      });
-
-      let linesCleared = 0;
-      const sweptBoard = newMyBoard.reduce((acc, row) => {
-        if (row.every(cell => cell !== 0)) {
-          linesCleared++;
-          acc.unshift(Array(COLS).fill(0));
-        } else {
-          acc.push(row);
-        }
-        return acc;
-      }, []);
-      
-      setSharedGameState(prev => ({
-        ...prev,
-        [mySymbol]: { 
-          ...prev[mySymbol], 
-          board: sweptBoard, 
-          score: prev[mySymbol].score + (linesCleared * 10 * linesCleared), 
-          lines: prev[mySymbol].lines + linesCleared
-        },
-      }));
-      
-      if (linesCleared > 0) {
-        setIsClearingLines(true);
-        setTimeout(() => {
-          setIsClearingLines(false);
-          setIsLocking(false);
-          resetPlayer();
-        }, 300);
-      } else {
-        setIsLocking(false);
-        resetPlayer();
-      }
-    }
-  }, [localPlayer.collided, isLocking, sharedGameState, mySymbol, resetPlayer, setSharedGameState]);
-
-  const animate = useCallback((time = 0) => {
-    const deltaTime = time - lastTimeRef.current;
-    lastTimeRef.current = time;
-    
-    dropCounterRef.current += deltaTime;
-    
-    if (dropCounterRef.current > dropTime) {
-      dropPlayer();
-      dropCounterRef.current = 0;
-    }
-    
-    requestRef.current = requestAnimationFrame(animate);
-  }, [dropPlayer, dropTime]);
-
-  useEffect(() => {
-    if (mySymbol && sharedGameState && sharedGameState[mySymbol] && sharedGameState.status === 'playing' && !sharedGameState[mySymbol].gameOver) {
-      requestRef.current = requestAnimationFrame(animate);
-    } else {
-      if (requestRef.current) {
-        cancelAnimationFrame(requestRef.current);
-      }
-    }
-    return () => {
-      if (requestRef.current) {
-        cancelAnimationFrame(requestRef.current);
-      }
-    };
-  }, [sharedGameState.status, sharedGameState, mySymbol, animate]);
-
-  useEffect(() => {
-    const myCtx = gameAreaRef.current?.getContext('2d');
-    const opponentCtx = opponentAreaRef.current?.getContext('2d');
-    const nextPieceCtx = nextPieceCanvasRef.current?.getContext('2d');
-    
-    if (!myCtx || !opponentCtx || !mySymbol || !opponentSymbol || !sharedGameState || !sharedGameState[mySymbol] || !sharedGameState[opponentSymbol]) return;
-
-    const drawBoard = (ctx, board, currentPlayer = null, currentBlockSize) => {
-      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-      
-      board.forEach((row, y) => {
-        row.forEach((value, x) => {
-          if (value !== 0) {
-            ctx.fillStyle = COLORS[value];
-            ctx.fillRect(x * currentBlockSize, y * currentBlockSize, currentBlockSize, currentBlockSize);
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(x * currentBlockSize, y * currentBlockSize, currentBlockSize, currentBlockSize);
-          }
-        });
-      });
-
-      if (currentPlayer?.shape) {
-        currentPlayer.shape.forEach((row, y) => {
-          row.forEach((value, x) => {
-            if (value !== 0) {
-              const px = (currentPlayer.pos.x + x) * currentBlockSize;
-              const py = (currentPlayer.pos.y + y) * currentBlockSize;
-              ctx.fillStyle = COLORS[value];
-              ctx.fillRect(px, py, currentBlockSize, currentBlockSize);
-              ctx.strokeStyle = '#000000';
-              ctx.lineWidth = 1;
-              ctx.strokeRect(px, py, currentBlockSize, currentBlockSize);
-            }
-          });
-        });
-      }
-    };
-
-    const drawNextPiece = (ctx, shape, currentBlockSize) => {
-      if (!ctx) return;
-      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-      if (!shape) return;
-
-      const colorIndex = shape.flat().find(val => val !== 0) || 0;
-      const color = COLORS[colorIndex];
-      const shapeWidth = shape[0].length;
-      const shapeHeight = shape.length;
-      const canvasHeightInBlocks = 2.5;
-      const offsetX = (4 - shapeWidth) / 2;
-      const offsetY = (canvasHeightInBlocks - shapeHeight) / 2;
-
-      shape.forEach((row, y) => {
-        row.forEach((value, x) => {
-          if (value !== 0) {
-            ctx.fillStyle = color;
-            ctx.fillRect((offsetX + x) * currentBlockSize, (offsetY + y) * currentBlockSize, currentBlockSize, currentBlockSize);
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 1;
-            ctx.strokeRect((offsetX + x) * currentBlockSize, (offsetY + y) * currentBlockSize, currentBlockSize, currentBlockSize);
-          }
-        });
-      });
-    };
-
-    drawBoard(myCtx, sharedGameState[mySymbol].board, localPlayer, blockSize);
-    
-    const opponentCurrentPiece = sharedGameState[opponentSymbol].currentPiece;
-    drawBoard(opponentCtx, sharedGameState[opponentSymbol].board, opponentCurrentPiece, blockSize);
-
-    const nextShape = getNextPiece(sharedGameState[mySymbol].pieceIndex);
-    drawNextPiece(nextPieceCtx, nextShape, blockSize);
-
-  }, [sharedGameState, localPlayer, mySymbol, opponentSymbol, blockSize, getNextPiece]);
-
-  const handleRematchRequest = () => {
-    if (!players || opponentClosed) return;
-    setRematchStatus({ by: mySymbol, status: 'pending' });
-    onRematchOffer(sessionId, mySymbol, 'pending');
-  };
-
-  const handleAcceptRematch = () => {
-    const newSeed = Date.now();
-    setSharedGameState({
-      P1: { board: createEmptyBoard(), score: 0, lines: 0, gameOver: false, currentPiece: null, pieceIndex: 0 },
-      P2: { board: createEmptyBoard(), score: 0, lines: 0, gameOver: false, currentPiece: null, pieceIndex: 0 },
-      status: 'playing',
-      winner: null,
-      gameStartTime: newSeed
     });
-    setLocalPlayer({ pos: { x: 0, y: 0 }, shape: null, collided: false });
-    setRematchStatus(null);
-    setPlayerStatus({ P1: 'online', P2: 'online' });
-    onRematchOffer(sessionId, mySymbol, 'accepted');
-  };
+    const [nextTetromino, setNextTetromino] = useState(null);
+    const [score, setScore] = useState(0);
+    const [gameOver, setGameOver] = useState(false);
+    const [gameSpeed, setGameSpeed] = useState(1000);
+    const [pieceSeed, setPieceSeed] = useState(mySeed);
 
-  const handleDeclineRematch = () => {
-    onRematchOffer(sessionId, mySymbol, 'declined');
-    setRematchStatus(prev => ({ ...prev, status: 'declined' }));
-  };
+    const [opponentBoard, setOpponentBoard] = useStateTogether(`tetris-board-${sessionId}`, createEmptyBoard());
+    const [opponentPlayer, setOpponentPlayer] = useStateTogether(`tetris-player-${sessionId}`, { pos: { x: 0, y: 0 }, tetromino: null });
+    const [opponentScore, setOpponentScore] = useStateTogether(`tetris-score-${sessionId}`, 0);
 
-  const handleKeyDown = useCallback((e) => {
-    if (isLocking || sharedGameState.status === 'finished' || opponentClosed || !mySymbol || !sharedGameState || !sharedGameState[mySymbol]) return;
+    const boardCanvasRef = useRef(null);
+    const nextCanvasRef = useRef(null);
+    const opponentBoardCanvasRef = useRef(null);
+
+    const resetPlayer = useCallback(() => {
+        const newTetromino = nextTetromino || getRandomTetromino(pieceSeed);
+        setPieceSeed(prev => prev + 1);
+        const newNextTetromino = getRandomTetromino(pieceSeed + 1);
+
+        setNextTetromino(newNextTetromino);
+        setPlayer({
+            pos: { x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0 },
+            tetromino: newTetromino,
+            collided: false,
+        });
+    }, [nextTetromino, pieceSeed]);
     
-    const key = e.key.toLowerCase();
-    if (['a', 'arrowleft', 'd', 'arrowright', 's', 'arrowdown', 'w', 'arrowup', 'q', 'e'].includes(key)) {
-      e.preventDefault();
-    }
-    
-    switch (key) {
-      case 'a':
-      case 'arrowleft':
-        movePlayer(-1);
-        break;
-      case 'd':
-      case 'arrowright':
-        movePlayer(1);
-        break;
-      case 's':
-      case 'arrowdown':
-        if (!isDropping) {
-          setIsDropping(true);
-          dropPlayer();
+    useEffect(() => {
+        if (!nextTetromino) {
+            resetPlayer();
         }
-        break;
-      case 'w':
-      case 'arrowup':
-      case 'e':
-        playerRotate(1);
-        break;
-      case 'q':
-        playerRotate(-1);
-        break;
-    }
-  }, [isLocking, movePlayer, dropPlayer, playerRotate, sharedGameState.status, opponentClosed, isDropping, mySymbol, sharedGameState]);
+    }, [nextTetromino, resetPlayer]);
 
-  const handleKeyUp = useCallback((e) => {
-    const key = e.key.toLowerCase();
-    if (key === 's' || key === 'arrowdown') {
-      setIsDropping(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    document.addEventListener('keydown', handleKeyDown);
-    document.addEventListener('keyup', handleKeyUp);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('keyup', handleKeyUp);
+    const isColliding = (player, board, { x: moveX, y: moveY }) => {
+        if (!player.tetromino) return false;
+        for (let y = 0; y < player.tetromino.shape.length; y += 1) {
+            for (let x = 0; x < player.tetromino.shape[y].length; x += 1) {
+                if (player.tetromino.shape[y][x] !== 0) {
+                    const newY = y + player.pos.y + moveY;
+                    const newX = x + player.pos.x + moveX;
+                    if (
+                        !board[newY] ||
+                        !board[newY][newX] ||
+                        board[newY][newX][0] !== 0
+                    ) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     };
-  }, [handleKeyDown, handleKeyUp]);
 
-  const getPlayerName = (symbol) => {
-    if (!players) return '';
-    if (symbol === 'P1') return players.challenger?.username || 'Player 1';
-    if (symbol === 'P2') return players.opponent?.username || 'Player 2';
-    return '';
-  };
-  
-  const iAmRematchRequester = rematchStatus && rematchStatus.by === mySymbol;
-  const iAmRematchReceiver = rematchStatus && rematchStatus.by === opponentSymbol;
+    const rotate = (matrix) => {
+        const rotated = matrix.map((_, index) => matrix.map(col => col[index]));
+        return rotated.map(row => row.reverse());
+    };
 
-  const renderPlayerArea = (symbol, isOpponent = false) => {
-    const playerData = (sharedGameState && sharedGameState[symbol]) || { board: createEmptyBoard(), score: 0, gameOver: false };
+    const playerRotate = (board) => {
+        const clonedPlayer = JSON.parse(JSON.stringify(player));
+        clonedPlayer.tetromino.shape = rotate(clonedPlayer.tetromino.shape);
 
+        const pos = clonedPlayer.pos.x;
+        let offset = 1;
+        while (isColliding(clonedPlayer, board, { x: 0, y: 0 })) {
+            clonedPlayer.pos.x += offset;
+            offset = -(offset + (offset > 0 ? 1 : -1));
+            if (offset > clonedPlayer.tetromino.shape[0].length) {
+                clonedPlayer.pos.x = pos;
+                return;
+            }
+        }
+        setPlayer(clonedPlayer);
+    };
+
+    const updatePlayerPos = ({ x, y, collided }) => {
+        setPlayer(prev => ({
+            ...prev,
+            pos: { x: (prev.pos.x + x), y: (prev.pos.y + y) },
+            collided,
+        }));
+    };
+
+    const drop = () => {
+        if (!isColliding(player, board, { x: 0, y: 1 })) {
+            updatePlayerPos({ x: 0, y: 1, collided: false });
+        } else {
+            if (player.pos.y < 1) {
+                setGameOver(true);
+                setGameSpeed(null);
+            }
+            setPlayer(prev => ({ ...prev, collided: true }));
+        }
+    };
+    
+    const hardDrop = () => {
+        let newY = player.pos.y;
+        while (!isColliding(player, board, { x: 0, y: newY - player.pos.y + 1 })) {
+            newY++;
+        }
+        setPlayer(prev => ({ ...prev, pos: { ...prev.pos, y: newY }, collided: true }));
+    };
+
+    const move = (dir) => {
+        if (!isColliding(player, board, { x: dir, y: 0 })) {
+            updatePlayerPos({ x: dir, y: 0, collided: false });
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (gameOver) return;
+        if (e.key === 'ArrowLeft') move(-1);
+        else if (e.key === 'ArrowRight') move(1);
+        else if (e.key === 'ArrowDown') drop();
+        else if (e.key === 'ArrowUp') playerRotate(board);
+        else if (e.key === ' ') hardDrop();
+    };
+
+    useEffect(() => {
+        if (player.collided) {
+            const newBoard = board.map(row => [...row]);
+            player.tetromino.shape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        const boardY = y + player.pos.y;
+                        const boardX = x + player.pos.x;
+                        if (boardY >= 0) {
+                            newBoard[boardY][boardX] = [1, player.tetromino.color];
+                        }
+                    }
+                });
+            });
+
+            let linesCleared = 0;
+            for (let y = newBoard.length - 1; y >= 0; y--) {
+                if (newBoard[y].every(cell => cell[0] !== 0)) {
+                    linesCleared++;
+                    newBoard.splice(y, 1);
+                }
+            }
+            if (linesCleared > 0) {
+                const newLines = Array.from({ length: linesCleared }, () => Array(BOARD_WIDTH).fill([0, '#000000']));
+                newBoard.unshift(...newLines);
+                setScore(prev => prev + linesCleared * 10);
+            }
+
+            setBoard(newBoard);
+            resetPlayer();
+        }
+    }, [player.collided]);
+    
+    useGameLoop(() => {
+        if (!gameOver) {
+            drop();
+        }
+    }, gameSpeed);
+    
+    useEffect(() => {
+        setOpponentBoard(board);
+        setOpponentPlayer(player);
+        setOpponentScore(score);
+    }, [board, player, score]);
+
+    const draw = (canvas, matrix, playerPiece = null) => {
+        const context = canvas.getContext('2d');
+        context.fillStyle = '#0F0F23';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+
+        matrix.forEach((row, y) => {
+            row.forEach((cell, x) => {
+                if (cell[0] !== 0) {
+                    context.fillStyle = cell[1];
+                    context.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                }
+            });
+        });
+
+        if (playerPiece && playerPiece.tetromino) {
+            context.fillStyle = playerPiece.tetromino.color;
+            playerPiece.tetromino.shape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        context.fillRect(
+                            (playerPiece.pos.x + x) * BLOCK_SIZE,
+                            (playerPiece.pos.y + y) * BLOCK_SIZE,
+                            BLOCK_SIZE, BLOCK_SIZE
+                        );
+                    }
+                });
+            });
+        }
+    };
+
+    const drawNext = (canvas, tetromino) => {
+        if (!tetromino) return;
+        const context = canvas.getContext('2d');
+        context.fillStyle = '#1A1A2E';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = tetromino.color;
+        tetromino.shape.forEach((row, y) => {
+            row.forEach((value, x) => {
+                if (value !== 0) {
+                    context.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                }
+            });
+        });
+    };
+
+    useEffect(() => {
+        if (boardCanvasRef.current) {
+            draw(boardCanvasRef.current, board, player);
+        }
+    }, [board, player]);
+
+    useEffect(() => {
+        if (opponentBoardCanvasRef.current) {
+            draw(opponentBoardCanvasRef.current, opponentBoard, opponentPlayer);
+        }
+    }, [opponentBoard, opponentPlayer]);
+
+    useEffect(() => {
+        if (nextCanvasRef.current && nextTetromino) {
+            drawNext(nextCanvasRef.current, nextTetromino);
+        }
+    }, [nextTetromino]);
+
+    useEffect(() => {
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [gameOver, board, player]);
+    
     return (
-      <div className="text-center flex flex-col items-center">
-        <h3 className="font-bold text-sm sm:text-base mb-1">
-          {getPlayerName(symbol)} {!isOpponent ? '(You)' : ''}
-        </h3>
-        
-        <div className="w-[40vw] md:w-[40vw] max-w-[150px] md:max-w-[200px]">
-          <canvas
-            ref={isOpponent ? opponentAreaRef : gameAreaRef}
-            width={COLS * blockSize}
-            height={ROWS * blockSize}
-            className={`w-full h-auto border-2 bg-darkCard ${isOpponent ? 'border-gray-600' : 'border-monad'}`}
-          />
-        </div>
-
-        <div className="flex flex-row justify-around items-center w-full mt-2 px-1">
-          <div className="text-white text-xs sm:text-sm">Score: {playerData.score}</div>
-          {!isOpponent && (
-            <div className="flex flex-col items-center">
-              <h4 className="text-xs font-semibold">Next</h4>
-              <canvas
-                ref={nextPieceCanvasRef}
-                width={blockSize * 4}
-                height={blockSize * 2.5}
-                className="border border-gray-600 bg-darkCard"
-              />
+        <div className="tetris-container flex-col md:flex-row p-4">
+            <div className="game-area relative">
+                <canvas
+                    ref={boardCanvasRef}
+                    width={BOARD_WIDTH * BLOCK_SIZE}
+                    height={BOARD_HEIGHT * BLOCK_SIZE}
+                ></canvas>
+                {gameOver && <div className="game-over-text">GAME OVER</div>}
+                <div className="game-info mt-2">
+                    <p>Score: {score}</p>
+                    <div className="mt-2">
+                        <p>Next:</p>
+                        <canvas
+                            ref={nextCanvasRef}
+                            width={4 * BLOCK_SIZE}
+                            height={4 * BLOCK_SIZE}
+                            className="border border-gray-600 mt-1"
+                        ></canvas>
+                    </div>
+                </div>
             </div>
-          )}
+            <div className="opponent-area">
+                <h3 className="text-center text-lg mb-2">Opponent</h3>
+                <canvas
+                    ref={opponentBoardCanvasRef}
+                    width={BOARD_WIDTH * BLOCK_SIZE}
+                    height={BOARD_HEIGHT * BLOCK_SIZE}
+                ></canvas>
+                <div className="game-info mt-2">
+                    <p>Opponent Score: {opponentScore}</p>
+                </div>
+            </div>
+            <div className="controls-info mt-4 w-full md:w-auto">
+                {isMobile() ? (
+                    <div className="mobile-controls grid grid-cols-3 gap-2 p-4 bg-gray-800 rounded-lg">
+                        <div className="col-span-1 flex flex-col items-center">
+                            <button className="btn btn-secondary p-4" onClick={() => move(-1)}><i className="fas fa-arrow-left"></i></button>
+                        </div>
+                        <div className="col-span-1 flex flex-col items-center gap-2">
+                            <button className="btn btn-secondary p-4" onClick={() => playerRotate(board)}><i className="fas fa-redo"></i></button>
+                            <button className="btn btn-secondary p-4" onClick={() => drop()}><i className="fas fa-arrow-down"></i></button>
+                        </div>
+                        <div className="col-span-1 flex flex-col items-center">
+                             <button className="btn btn-secondary p-4" onClick={() => move(1)}><i className="fas fa-arrow-right"></i></button>
+                        </div>
+                        <div className="col-span-3 mt-2">
+                             <button className="btn btn-secondary p-4 w-full" onClick={hardDrop}><i className="fas fa-angle-double-down"></i> Hard Drop</button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="pc-controls bg-gray-800 p-4 rounded-lg">
+                        <h4 className="font-bold mb-2">Controls:</h4>
+                        <ul>
+                            <li><span className="font-bold">Left/Right Arrows:</span> Move</li>
+                            <li><span className="font-bold">Up Arrow:</span> Rotate</li>
+                            <li><span className="font-bold">Down Arrow:</span> Soft Drop</li>
+                            <li><span className="font-bold">Spacebar:</span> Hard Drop</li>
+                        </ul>
+                    </div>
+                )}
+            </div>
         </div>
-      </div>
     );
-  };
-
-  return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-dark text-white p-4">
-      <div className="w-full max-w-4xl">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl sm:text-3xl font-bold text-monad">Tetris Battle</h1>
-          {opponentClosed && (
-            <div className="text-red-400 text-sm">
-              Opponent disconnected
-            </div>
-          )}
-        </div>
-
-        <div className="flex flex-col sm:flex-row justify-center items-start gap-4 sm:gap-8 mb-6">
-          {mySymbol && renderPlayerArea(mySymbol, false)}
-          {opponentSymbol && renderPlayerArea(opponentSymbol, true)}
-        </div>
-
-        <GameControls />
-
-        {sharedGameState.status === 'playing' && !opponentClosed ? (
-          <>
-            <div className="text-center mb-4">
-              <p className="text-sm">Use WASD or Arrow Keys to play</p>
-              <p className="text-xs text-gray-400">W/↑: Rotate | A/←: Left | D/→: Right | S/↓: Soft Drop</p>
-            </div>
-          </>
-        ) : sharedGameState.status === 'finished' ? (
-          <>
-            {sharedGameState.winner && (
-              <div className="text-green-400 font-bold text-xl sm:text-2xl mb-4">
-                Winner: {sharedGameState.winner === mySymbol ? 'You' : getPlayerName(sharedGameState.winner)}
-              </div>
-            )}
-            {rematchStatus?.status === 'pending' ? (
-              iAmRematchReceiver ? (
-                <>
-                  <p className="mb-2">{getPlayerName(opponentSymbol)} wants a rematch!</p>
-                  <button onClick={handleAcceptRematch} className="btn btn-primary mr-2">
-                    Accept
-                  </button>
-                  <button onClick={handleDeclineRematch} className="btn btn-secondary">
-                    Decline
-                  </button>
-                </>
-              ) : (
-                <p>Waiting for {getPlayerName(opponentSymbol)} to respond...</p>
-              )
-            ) : rematchStatus?.status === 'declined' ? (
-              <>
-                <p className="mb-2">
-                  {iAmRematchRequester
-                    ? `${getPlayerName(opponentSymbol)} declined the rematch.`
-                    : 'You declined the rematch.'}
-                </p>
-                <button onClick={onCloseGame} className="btn btn-secondary">
-                  Close
-                </button>
-              </>
-            ) : (
-              <div className="flex gap-2 justify-center">
-                <button onClick={handleRematchRequest} className="btn btn-primary">
-                  Play Again?
-                </button>
-                <button onClick={onCloseGame} className="btn btn-secondary">
-                  Close
-                </button>
-              </div>
-            )}
-          </>
-        ) : null}
-      </div>
-    </div>
-  );
 }
