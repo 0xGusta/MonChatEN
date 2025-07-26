@@ -55,6 +55,10 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   const lastTimeRef = useRef(0);
   const dropCounterRef = useRef(0);
 
+  if (!gameState || !gameState.P1 || !gameState.P2) {
+    return <p>Loading game...</p>;
+  }
+
   const myCurrentPiece = gameState[mySymbol]?.currentPiece;
   const opponentClosed = playerStatus[opponentSymbol] === 'closed';
 
