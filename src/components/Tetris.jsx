@@ -45,7 +45,7 @@ export default function Tetris({ players, sessionId, myAddress }) {
       const player = prev[mySymbol];
       if (!player) return prev;
       const data = { ...player };
-      data.piece = modifier(data.piece);
+      data.piece = modifier(data.piece, data.board);
       return { ...prev, [mySymbol]: data };
     });
   }, [mySymbol, setGameState]);
@@ -137,25 +137,23 @@ export default function Tetris({ players, sessionId, myAddress }) {
   }, [mySymbol, setGameState]);
 
   const move = useCallback((dir) => {
-    updatePiece(piece => {
-      const board = gameState[mySymbol]?.board;
+    updatePiece((piece, board) => {
       if (!board || !piece) return piece;
       const moved = { ...piece, pos: { ...piece.pos, x: piece.pos.x + dir } };
       if (!checkCollision(moved, board)) return moved;
       return piece;
     });
-  }, [updatePiece, gameState, mySymbol]);
+  }, [updatePiece]);
 
   const rotate = useCallback(() => {
-    updatePiece(piece => {
-      const board = gameState[mySymbol]?.board;
+    updatePiece((piece, board) => {
       if (!board || !piece) return piece;
       const rotated = piece.shape[0].map((_, i) => piece.shape.map(r => r[i])).reverse();
       const test = { ...piece, shape: rotated };
       if (!checkCollision(test, board)) return test;
       return piece;
     });
-  }, [updatePiece, gameState, mySymbol]);
+  }, [updatePiece]);
 
   useEffect(() => {
     if (!gameState[mySymbol]?.piece && !gameState[mySymbol]?.gameOver) {
