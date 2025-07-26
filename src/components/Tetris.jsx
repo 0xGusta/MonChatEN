@@ -36,6 +36,10 @@ export default function Tetris({ players, sessionId, myAddress }) {
   const opponentCanvasRef = useRef();
   const nextCanvasRef = useRef();
 
+  if (!gameState) {
+    return <p>Loading game...</p>;
+  }
+
   const updatePiece = useCallback((modifier) => {
     setGameState(prev => {
       const player = prev[mySymbol];
