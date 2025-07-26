@@ -238,7 +238,7 @@ export default function ChatApp() {
 
     useEffect(() => {
         if (!isConnected || isAppLoading) {
-            console.log("[Polling] Stopping polling: wallet not connected or app is loading.");
+
             if (pollingIntervalRef.current) {
                 clearInterval(pollingIntervalRef.current);
                 pollingIntervalRef.current = null;
@@ -272,28 +272,22 @@ export default function ChatApp() {
     
         const startPolling = () => {
             if (!readOnlyPollingContract) {
-                console.error("[Polling] No read-only contract is available. Polling cannot start.");
+
                 return;
             }
-            console.log("[Polling] Starting message polling with a dedicated read-only provider.");
             if (pollingIntervalRef.current) {
                 clearInterval(pollingIntervalRef.current);
             }
             pollingIntervalRef.current = setInterval(async () => {
                 try {
-                    console.log("[Polling] Checking for new messages using public provider...");
                     const blockNumber = await readOnlyPollingContract.runner.provider.getBlockNumber();
-                    console.log(`[Polling] Current block (via public RPC): ${blockNumber}`);
+
                     const totalMessagesBigInt = await readOnlyPollingContract.contadorMensagens();
                     const total = Number(totalMessagesBigInt);
                     const previous = lastMessageCountRef.current;
-                    console.log(`[Polling] Current total on contract (via public RPC): ${total}`);
-                    console.log(`[Polling] Previous local total: ${previous}`);
     
                     if (total > previous) {
                         const newMessagesCount = total - previous;
-                        console.log(`[Polling] New messages detected: ${newMessagesCount}`);
-                        
                         await loadLatestMessages(total); 
     
                         const container = messagesContainerRef.current;
@@ -301,20 +295,15 @@ export default function ChatApp() {
                             ? (container.scrollHeight - container.scrollTop - container.clientHeight) < container.clientHeight
                             : true;
                         if (isAtBottom) {
-                            console.log("[Polling] User is at bottom — auto-scrolling.");
                             setTimeout(() => scrollToBottom(), 300);
                         } else {
-                            console.log("[Polling] User is not at bottom — incrementing unseen messages.");
                             setUnseenMessages(prev => prev + newMessagesCount);
                         }
-                        console.log(`[Polling] UPDATING local count from ${previous} to ${total}.`);
                         lastMessageCountRef.current = total;
                     } else {
                         console.log("[Polling] No new messages.");
                     }
                 } catch (error) {
-                    console.error("[Polling] Error fetching messages with public provider:", error);
-                    console.log("[Polling] Attempting to re-setup the polling provider...");
                     setupPollingProvider();
                 }
             }, 5000);
@@ -324,7 +313,6 @@ export default function ChatApp() {
     
         return () => {
             if (pollingIntervalRef.current) {
-                console.log("[Polling] Clearing polling interval.");
                 clearInterval(pollingIntervalRef.current);
                 pollingIntervalRef.current = null;
             }
