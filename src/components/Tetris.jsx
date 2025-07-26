@@ -38,7 +38,9 @@ export default function Tetris({ players, sessionId, myAddress }) {
 
   const updatePiece = useCallback((modifier) => {
     setGameState(prev => {
-      const data = { ...prev[mySymbol] };
+      const player = prev[mySymbol];
+      if (!player) return prev;
+      const data = { ...player };
       data.piece = modifier(data.piece);
       return { ...prev, [mySymbol]: data };
     });
@@ -91,7 +93,9 @@ export default function Tetris({ players, sessionId, myAddress }) {
 
   const resetPiece = useCallback(() => {
     setGameState(prev => {
-      const data = { ...prev[mySymbol] };
+      const player = prev[mySymbol];
+      if (!player) return prev;
+      const data = { ...player };
       const nextShapeIndex = data.sequence[data.pieceIndex % data.sequence.length];
       const newShape = SHAPES[nextShapeIndex];
       const newPiece = {
@@ -110,8 +114,9 @@ export default function Tetris({ players, sessionId, myAddress }) {
 
   const drop = useCallback(() => {
     setGameState(prev => {
-      const data = { ...prev[mySymbol] };
-      if (!data.piece || data.gameOver) return prev;
+      const player = prev[mySymbol];
+      if (!player || player.gameOver || !player.piece) return prev;
+      const data = { ...player };
       const moved = { ...data.piece, pos: { ...data.piece.pos, y: data.piece.pos.y + 1 } };
       if (checkCollision(moved, data.board)) {
         const merged = mergePieceToBoard(data.board, data.piece);
@@ -129,23 +134,27 @@ export default function Tetris({ players, sessionId, myAddress }) {
 
   const move = useCallback((dir) => {
     updatePiece(piece => {
+      const board = gameState[mySymbol]?.board;
+      if (!board || !piece) return piece;
       const moved = { ...piece, pos: { ...piece.pos, x: piece.pos.x + dir } };
-      if (!checkCollision(moved, gameState[mySymbol].board)) return moved;
+      if (!checkCollision(moved, board)) return moved;
       return piece;
     });
   }, [updatePiece, gameState, mySymbol]);
 
   const rotate = useCallback(() => {
     updatePiece(piece => {
+      const board = gameState[mySymbol]?.board;
+      if (!board || !piece) return piece;
       const rotated = piece.shape[0].map((_, i) => piece.shape.map(r => r[i])).reverse();
       const test = { ...piece, shape: rotated };
-      if (!checkCollision(test, gameState[mySymbol].board)) return test;
+      if (!checkCollision(test, board)) return test;
       return piece;
     });
   }, [updatePiece, gameState, mySymbol]);
 
   useEffect(() => {
-    if (!gameState[mySymbol].piece && !gameState[mySymbol].gameOver) {
+    if (!gameState[mySymbol]?.piece && !gameState[mySymbol]?.gameOver) {
       resetPiece();
     }
   }, [gameState, mySymbol, resetPiece]);
@@ -162,7 +171,7 @@ export default function Tetris({ players, sessionId, myAddress }) {
   }, [drop]);
 
   useEffect(() => {
-    if (!gameState[mySymbol].gameOver) {
+    if (!gameState[mySymbol]?.gameOver) {
       requestRef.current = requestAnimationFrame(animate);
     }
     return () => cancelAnimationFrame(requestRef.current);
@@ -170,7 +179,7 @@ export default function Tetris({ players, sessionId, myAddress }) {
 
   useEffect(() => {
     const handleKey = (e) => {
-      if (gameState[mySymbol].gameOver) return;
+      if (gameState[mySymbol]?.gameOver) return;
       if (['ArrowLeft', 'a'].includes(e.key)) move(-1);
       else if (['ArrowRight', 'd'].includes(e.key)) move(1);
       else if (['ArrowUp', 'w', 'q', 'e'].includes(e.key)) rotate();
@@ -208,12 +217,14 @@ export default function Tetris({ players, sessionId, myAddress }) {
       }
     };
 
-    drawBoard(ctx, gameState[mySymbol].board, gameState[mySymbol].piece);
-    drawBoard(ctx2, gameState[opponentSymbol].board, gameState[opponentSymbol].piece);
+    const me = gameState[mySymbol];
+    const opp = gameState[opponentSymbol];
+    if (me) drawBoard(ctx, me.board, me.piece);
+    if (opp) drawBoard(ctx2, opp.board, opp.piece);
 
-    if (nextCtx) {
+    if (nextCtx && me) {
       nextCtx.clearRect(0, 0, nextCtx.canvas.width, nextCtx.canvas.height);
-      const idx = gameState[mySymbol].sequence[gameState[mySymbol].pieceIndex % 100];
+      const idx = me.sequence[me.pieceIndex % 100];
       const shape = SHAPES[idx];
       shape.forEach((row, y) => {
         row.forEach((val, x) => {
@@ -226,6 +237,9 @@ export default function Tetris({ players, sessionId, myAddress }) {
     }
   }, [gameState, mySymbol, opponentSymbol]);
 
+  const me = gameState[mySymbol];
+  const opp = gameState[opponentSymbol];
+
   return (
     <div className="flex flex-col items-center">
       <div className="flex gap-4">
@@ -233,18 +247,18 @@ export default function Tetris({ players, sessionId, myAddress }) {
           <p className="text-white text-sm mb-1">You</p>
           <canvas ref={canvasRef} width={COLS * blockSize} height={ROWS * blockSize} className="bg-black border" />
           <canvas ref={nextCanvasRef} width={blockSize * 4} height={blockSize * 2.5} className="mt-2 bg-black border" />
-          <p className="text-white text-xs mt-1">Score: {gameState[mySymbol].score}</p>
+          <p className="text-white text-xs mt-1">Score: {me?.score ?? 0}</p>
         </div>
         <div className="flex flex-col items-center">
           <p className="text-white text-sm mb-1">Opponent</p>
           <canvas ref={opponentCanvasRef} width={COLS * blockSize} height={ROWS * blockSize} className="bg-black border" />
-          <p className="text-white text-xs mt-1">Score: {gameState[opponentSymbol].score}</p>
+          <p className="text-white text-xs mt-1">Score: {opp?.score ?? 0}</p>
         </div>
       </div>
       <div className="mt-4 w-full max-w-xs">
         <GameControls onMove={move} onRotate={rotate} onDrop={drop} />
       </div>
-      {gameState[mySymbol].gameOver && <p className="text-red-500 text-xl mt-4">Game Over</p>}
+      {me?.gameOver && <p className="text-red-500 text-xl mt-4">Game Over</p>}
     </div>
   );
 }
