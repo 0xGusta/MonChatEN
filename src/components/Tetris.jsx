@@ -3,7 +3,10 @@ import { useStateTogether } from 'react-together';
 
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 20;
-const BLOCK_SIZE = 20;
+
+const isMobile = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+const BLOCK_SIZE = isMobile() ? 14 : 20;
 
 const TETROMINOS = {
     'I': { shape: [[1, 1, 1, 1]], color: '#00FFFF' },
@@ -20,16 +23,14 @@ const TETROMINO_KEYS = Object.keys(TETROMINOS);
 const createEmptyBoard = () => Array.from({ length: BOARD_HEIGHT }, () => Array(BOARD_WIDTH).fill([0, '#000000']));
 
 const getRandomTetromino = (seed) => {
-
     const pseudoRandom = () => {
         let x = Math.sin(seed++) * 10000;
         return x - Math.floor(x);
     };
     const key = TETROMINO_KEYS[Math.floor(pseudoRandom() * TETROMINO_KEYS.length)];
-    return TETROMINOS[key];
+    return JSON.parse(JSON.stringify(TETROMINOS[key]));
 };
 
-const isMobile = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
 const useGameLoop = (callback, speed) => {
     const savedCallback = useRef();
@@ -50,7 +51,6 @@ const useGameLoop = (callback, speed) => {
 };
 
 export default function Tetris({ sessionId, myAddress }) {
-
     const mySeed = parseInt(myAddress.slice(2, 10), 16);
 
     const [board, setBoard] = useState(createEmptyBoard());
@@ -64,10 +64,21 @@ export default function Tetris({ sessionId, myAddress }) {
     const [gameOver, setGameOver] = useState(false);
     const [gameSpeed, setGameSpeed] = useState(1000);
     const [pieceSeed, setPieceSeed] = useState(mySeed);
+    const [sharedState, setSharedState] = useStateTogether(`tetris-game-${sessionId}`, {});
 
-    const [opponentBoard, setOpponentBoard] = useStateTogether(`tetris-board-${sessionId}`, createEmptyBoard());
-    const [opponentPlayer, setOpponentPlayer] = useStateTogether(`tetris-player-${sessionId}`, { pos: { x: 0, y: 0 }, tetromino: null });
-    const [opponentScore, setOpponentScore] = useStateTogether(`tetris-score-${sessionId}`, 0);
+    useEffect(() => {
+        setSharedState(prev => ({
+            ...prev,
+            [myAddress]: { board, player, score, nextTetromino, gameOver }
+        }));
+    }, [board, player, score, nextTetromino, gameOver, myAddress, setSharedState]);
+
+    const opponentAddress = Object.keys(sharedState).find(addr => addr !== myAddress);
+    const opponentData = opponentAddress ? sharedState[opponentAddress] : null;
+
+    const opponentBoard = opponentData?.board || createEmptyBoard();
+    const opponentPlayer = opponentData?.player;
+    const opponentScore = opponentData?.score || 0;
 
     const boardCanvasRef = useRef(null);
     const nextCanvasRef = useRef(null);
@@ -85,25 +96,21 @@ export default function Tetris({ sessionId, myAddress }) {
             collided: false,
         });
     }, [nextTetromino, pieceSeed]);
-    
+
     useEffect(() => {
-        if (!nextTetromino) {
+        if (!player.tetromino) {
             resetPlayer();
         }
-    }, [nextTetromino, resetPlayer]);
+    }, [player.tetromino, resetPlayer]);
 
-    const isColliding = (player, board, { x: moveX, y: moveY }) => {
-        if (!player.tetromino) return false;
-        for (let y = 0; y < player.tetromino.shape.length; y += 1) {
-            for (let x = 0; x < player.tetromino.shape[y].length; x += 1) {
-                if (player.tetromino.shape[y][x] !== 0) {
-                    const newY = y + player.pos.y + moveY;
-                    const newX = x + player.pos.x + moveX;
-                    if (
-                        !board[newY] ||
-                        !board[newY][newX] ||
-                        board[newY][newX][0] !== 0
-                    ) {
+    const isColliding = (p, b, { x: moveX, y: moveY }) => {
+        if (!p.tetromino) return false;
+        for (let y = 0; y < p.tetromino.shape.length; y += 1) {
+            for (let x = 0; x < p.tetromino.shape[y].length; x += 1) {
+                if (p.tetromino.shape[y][x] !== 0) {
+                    const newY = y + p.pos.y + moveY;
+                    const newX = x + p.pos.x + moveX;
+                    if (!b[newY] || !b[newY][newX] || b[newY][newX][0] !== 0) {
                         return true;
                     }
                 }
@@ -111,10 +118,12 @@ export default function Tetris({ sessionId, myAddress }) {
         }
         return false;
     };
-
+    
     const rotate = (matrix) => {
-        const rotated = matrix.map((_, index) => matrix.map(col => col[index]));
-        return rotated.map(row => row.reverse());
+
+        const transposed = matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
+
+        return transposed.map(row => row.reverse());
     };
 
     const playerRotate = (board) => {
@@ -137,12 +146,12 @@ export default function Tetris({ sessionId, myAddress }) {
     const updatePlayerPos = ({ x, y, collided }) => {
         setPlayer(prev => ({
             ...prev,
-            pos: { x: (prev.pos.x + x), y: (prev.pos.y + y) },
+            pos: { x: prev.pos.x + x, y: prev.pos.y + y },
             collided,
         }));
     };
-
-    const drop = () => {
+    
+    const drop = useCallback(() => {
         if (!isColliding(player, board, { x: 0, y: 1 })) {
             updatePlayerPos({ x: 0, y: 1, collided: false });
         } else {
@@ -152,29 +161,20 @@ export default function Tetris({ sessionId, myAddress }) {
             }
             setPlayer(prev => ({ ...prev, collided: true }));
         }
-    };
-    
+    }, [board, player]);
+
     const hardDrop = () => {
-        let newY = player.pos.y;
-        while (!isColliding(player, board, { x: 0, y: newY - player.pos.y + 1 })) {
-            newY++;
+        let y = 0;
+        while (!isColliding(player, board, { x: 0, y: y + 1 })) {
+            y++;
         }
-        setPlayer(prev => ({ ...prev, pos: { ...prev.pos, y: newY }, collided: true }));
+        updatePlayerPos({ x: 0, y, collided: true });
     };
 
     const move = (dir) => {
         if (!isColliding(player, board, { x: dir, y: 0 })) {
             updatePlayerPos({ x: dir, y: 0, collided: false });
         }
-    };
-
-    const handleKeyDown = (e) => {
-        if (gameOver) return;
-        if (e.key === 'ArrowLeft') move(-1);
-        else if (e.key === 'ArrowRight') move(1);
-        else if (e.key === 'ArrowDown') drop();
-        else if (e.key === 'ArrowUp') playerRotate(board);
-        else if (e.key === ' ') hardDrop();
     };
 
     useEffect(() => {
@@ -193,36 +193,27 @@ export default function Tetris({ sessionId, myAddress }) {
             });
 
             let linesCleared = 0;
-            for (let y = newBoard.length - 1; y >= 0; y--) {
-                if (newBoard[y].every(cell => cell[0] !== 0)) {
-                    linesCleared++;
-                    newBoard.splice(y, 1);
-                }
-            }
+            const clearedBoard = newBoard.filter(row => !row.every(cell => cell[0] !== 0));
+            linesCleared = BOARD_HEIGHT - clearedBoard.length;
+
             if (linesCleared > 0) {
                 const newLines = Array.from({ length: linesCleared }, () => Array(BOARD_WIDTH).fill([0, '#000000']));
-                newBoard.unshift(...newLines);
+                setBoard([...newLines, ...clearedBoard]);
                 setScore(prev => prev + linesCleared * 10);
+            } else {
+                setBoard(newBoard);
             }
-
-            setBoard(newBoard);
             resetPlayer();
         }
-    }, [player.collided]);
-    
+    }, [player.collided, board, player.tetromino, player.pos.x, player.pos.y, resetPlayer]);
+
     useGameLoop(() => {
         if (!gameOver) {
             drop();
         }
     }, gameSpeed);
-    
-    useEffect(() => {
-        setOpponentBoard(board);
-        setOpponentPlayer(player);
-        setOpponentScore(score);
-    }, [board, player, score]);
 
-    const draw = (canvas, matrix, playerPiece = null) => {
+    const draw = useCallback((canvas, matrix, playerPiece = null) => {
         const context = canvas.getContext('2d');
         context.fillStyle = '#0F0F23';
         context.fillRect(0, 0, canvas.width, canvas.height);
@@ -250,107 +241,114 @@ export default function Tetris({ sessionId, myAddress }) {
                 });
             });
         }
-    };
+    }, []);
 
-    const drawNext = (canvas, tetromino) => {
-        if (!tetromino) return;
+    const drawNext = useCallback((canvas, tetromino) => {
         const context = canvas.getContext('2d');
         context.fillStyle = '#1A1A2E';
         context.fillRect(0, 0, canvas.width, canvas.height);
-        context.fillStyle = tetromino.color;
-        tetromino.shape.forEach((row, y) => {
-            row.forEach((value, x) => {
-                if (value !== 0) {
-                    context.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
-                }
+        if (tetromino) {
+            context.fillStyle = tetromino.color;
+            tetromino.shape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+
+                        const offsetX = (canvas.width - tetromino.shape[0].length * BLOCK_SIZE) / 2;
+                        const offsetY = (canvas.height - tetromino.shape.length * BLOCK_SIZE) / 2;
+                        context.fillRect(offsetX + x * BLOCK_SIZE, offsetY + y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    }
+                });
             });
-        });
-    };
+        }
+    }, []);
 
     useEffect(() => {
-        if (boardCanvasRef.current) {
-            draw(boardCanvasRef.current, board, player);
-        }
-    }, [board, player]);
+        if (boardCanvasRef.current) draw(boardCanvasRef.current, board, player);
+    }, [board, player, draw]);
 
     useEffect(() => {
-        if (opponentBoardCanvasRef.current) {
-            draw(opponentBoardCanvasRef.current, opponentBoard, opponentPlayer);
-        }
-    }, [opponentBoard, opponentPlayer]);
+        if (opponentBoardCanvasRef.current) draw(opponentBoardCanvasRef.current, opponentBoard, opponentPlayer);
+    }, [opponentBoard, opponentPlayer, draw]);
 
     useEffect(() => {
-        if (nextCanvasRef.current && nextTetromino) {
-            drawNext(nextCanvasRef.current, nextTetromino);
-        }
-    }, [nextTetromino]);
+        if (nextCanvasRef.current) drawNext(nextCanvasRef.current, nextTetromino);
+    }, [nextTetromino, drawNext]);
 
+    const handleKeyDown = useCallback((e) => {
+        if (gameOver) return;
+        const keyMap = {
+            'ArrowLeft': () => move(-1),
+            'ArrowRight': () => move(1),
+            'ArrowDown': drop,
+            'ArrowUp': () => playerRotate(board),
+            ' ': hardDrop,
+        };
+        const action = keyMap[e.key];
+        if (action) {
+            e.preventDefault();
+            action();
+        }
+    }, [gameOver, move, drop, playerRotate, hardDrop, board]);
+    
     useEffect(() => {
         window.addEventListener('keydown', handleKeyDown);
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-        };
-    }, [gameOver, board, player]);
-    
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleKeyDown]);
+
     return (
-        <div className="tetris-container flex-col md:flex-row p-4">
-            <div className="game-area relative">
-                <canvas
-                    ref={boardCanvasRef}
-                    width={BOARD_WIDTH * BLOCK_SIZE}
-                    height={BOARD_HEIGHT * BLOCK_SIZE}
-                ></canvas>
-                {gameOver && <div className="game-over-text">GAME OVER</div>}
-                <div className="game-info mt-2">
-                    <p>Score: {score}</p>
-                    <div className="mt-2">
-                        <p>Next:</p>
-                        <canvas
-                            ref={nextCanvasRef}
-                            width={4 * BLOCK_SIZE}
-                            height={4 * BLOCK_SIZE}
-                            className="border border-gray-600 mt-1"
-                        ></canvas>
-                    </div>
+        <div className="tetris-container flex flex-col items-center p-2 text-white">
+
+            <div className="boards-container flex flex-row justify-center items-start gap-2 md:gap-4">
+
+                <div className="game-area relative flex flex-col items-center">
+                    <h3 className="text-lg mb-1">You</h3>
+                    <canvas
+                        ref={boardCanvasRef}
+                        width={BOARD_WIDTH * BLOCK_SIZE}
+                        height={BOARD_HEIGHT * BLOCK_SIZE}
+                        className="border-2 border-gray-500"
+                    />
+                    {gameOver && <div className="game-over-text">GAME OVER</div>}
+                </div>
+
+                <div className="opponent-area flex flex-col items-center">
+                    <h3 className="text-lg mb-1">Opponent</h3>
+                    <canvas
+                        ref={opponentBoardCanvasRef}
+                        width={BOARD_WIDTH * BLOCK_SIZE}
+                        height={BOARD_HEIGHT * BLOCK_SIZE}
+                        className="border-2 border-gray-700"
+                    />
                 </div>
             </div>
-            <div className="opponent-area">
-                <h3 className="text-center text-lg mb-2">Opponent</h3>
-                <canvas
-                    ref={opponentBoardCanvasRef}
-                    width={BOARD_WIDTH * BLOCK_SIZE}
-                    height={BOARD_HEIGHT * BLOCK_SIZE}
-                ></canvas>
-                <div className="game-info mt-2">
-                    <p>Opponent Score: {opponentScore}</p>
+
+            <div className="info-panel flex flex-row justify-around w-full max-w-lg mt-2 text-sm md:text-base">
+                <p>Score: {score}</p>
+                <div className="flex flex-col items-center">
+                    <p>Next:</p>
+                    <canvas
+                        ref={nextCanvasRef}
+                        width={4 * BLOCK_SIZE}
+                        height={4 * BLOCK_SIZE}
+                        className="border border-gray-600 mt-1"
+                    />
                 </div>
+                <p>Opponent Score: {opponentScore}</p>
             </div>
-            <div className="controls-info mt-4 w-full md:w-auto">
+
+            <div className="controls-info mt-4">
                 {isMobile() ? (
-                    <div className="mobile-controls grid grid-cols-3 gap-2 p-4 bg-gray-800 rounded-lg">
-                        <div className="col-span-1 flex flex-col items-center">
-                            <button className="btn btn-secondary p-4" onClick={() => move(-1)}><i className="fas fa-arrow-left"></i></button>
-                        </div>
-                        <div className="col-span-1 flex flex-col items-center gap-2">
-                            <button className="btn btn-secondary p-4" onClick={() => playerRotate(board)}><i className="fas fa-redo"></i></button>
-                            <button className="btn btn-secondary p-4" onClick={() => drop()}><i className="fas fa-arrow-down"></i></button>
-                        </div>
-                        <div className="col-span-1 flex flex-col items-center">
-                             <button className="btn btn-secondary p-4" onClick={() => move(1)}><i className="fas fa-arrow-right"></i></button>
-                        </div>
-                        <div className="col-span-3 mt-2">
-                             <button className="btn btn-secondary p-4 w-full" onClick={hardDrop}><i className="fas fa-angle-double-down"></i> Hard Drop</button>
-                        </div>
+                    <div className="mobile-controls grid grid-cols-3 gap-2 p-2 bg-gray-800 rounded-lg">
+                        <button className="btn-control" onClick={() => move(-1)}>◀</button>
+                        <button className="btn-control" onClick={() => move(1)}>▶</button>
+                        <button className="btn-control" onClick={() => playerRotate(board)}>↺</button>
+                        <button className="btn-control col-span-3" onClick={hardDrop}>DROP</button>
+                        <button className="btn-control col-span-3" onClick={drop}>▼</button>
                     </div>
                 ) : (
-                    <div className="pc-controls bg-gray-800 p-4 rounded-lg">
-                        <h4 className="font-bold mb-2">Controls:</h4>
-                        <ul>
-                            <li><span className="font-bold">Left/Right Arrows:</span> Move</li>
-                            <li><span className="font-bold">Up Arrow:</span> Rotate</li>
-                            <li><span className="font-bold">Down Arrow:</span> Soft Drop</li>
-                            <li><span className="font-bold">Spacebar:</span> Hard Drop</li>
-                        </ul>
+                    <div className="pc-controls bg-gray-800 p-3 rounded-lg text-sm">
+                        <h4 className="font-bold mb-1">Controls:</h4>
+                        <p><span className="font-bold">←/→:</span> Move | <span className="font-bold">↑:</span> Rotate | <span className="font-bold">↓:</span> Soft Drop | <span className="font-bold">Space:</span> Hard Drop</p>
                     </div>
                 )}
             </div>
