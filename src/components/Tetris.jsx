@@ -156,7 +156,7 @@ export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRem
   }, []);
 
   const getNextPiece = useCallback((pieceIndex) => {
-    if (!mySymbol) return null;
+    if (!mySymbol || !pieceSequences[mySymbol]) return null;
     const sequence = pieceSequences[mySymbol];
     if (!sequence || pieceIndex >= sequence.length) return null;
     
