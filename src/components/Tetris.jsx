@@ -39,6 +39,7 @@ export default function Tetris({ players, sessionId, myAddress, onRematchOffer, 
   const [pieceIndex, setPieceIndex] = useState(0);
   const [isLocking, setIsLocking] = useState(false);
   const [isDropping, setIsDropping] = useState(false);
+  const [resetDelay, setResetDelay] = useState(null);
   const [blockSize, setBlockSize] = useState(20);
   const dropTime = 1000;
 
@@ -181,63 +182,66 @@ export default function Tetris({ players, sessionId, myAddress, onRematchOffer, 
   }, [isLocking, player, gameState, mySymbol, opponentClosed, checkCollision]);
 
   useEffect(() => {
-    if (player.collided && !isLocking && gameState?.[mySymbol] && gameState?.[opponentSymbol]) {
-        setIsLocking(true);
+    if (player.collided && !isLocking) {
+      setIsLocking(true);
 
-        const newMyBoard = gameState[mySymbol].board.map(row => [...row]);
-        player.shape.forEach((row, y) => {
-            row.forEach((value, x) => {
-                if (value !== 0) {
-                    newMyBoard[y + player.pos.y][x + player.pos.x] = value;
-                }
-            });
+      const newMyBoard = gameState[mySymbol].board.map(row => [...row]);
+      player.shape.forEach((row, y) => {
+        row.forEach((value, x) => {
+          if (value !== 0) newMyBoard[y + player.pos.y][x + player.pos.x] = value;
         });
+      });
 
-        let linesCleared = 0;
-        const sweptBoard = newMyBoard.reduce((acc, row) => {
-            if (row.every(cell => cell !== 0)) {
-                linesCleared++;
-                acc.unshift(Array(COLS).fill(0));
-            } else {
-                acc.push(row);
-            }
-            return acc;
-        }, []);
-        
-        const garbageToSend = Math.max(0, linesCleared - 1);
+      let linesCleared = 0;
+      const sweptBoard = newMyBoard.reduce((acc, row) => {
+        if (row.every(cell => cell !== 0)) {
+          linesCleared++;
+          acc.unshift(Array(COLS).fill(0));
+        } else {
+          acc.push(row);
+        }
+        return acc;
+      }, []);
+      
+      const garbageToSend = Math.max(0, linesCleared - 1);
 
-        setGameState(prev => {
-            if (!prev) return prev;
-            let newOpponentBoard = prev[opponentSymbol].board;
-            const isOpponentTopRowClear = prev[opponentSymbol].board[0]?.every(cell => cell === 0);
+      setGameState(prev => {
+        if (!prev) return prev;
+        let newOpponentBoard = prev[opponentSymbol].board;
+        const isOpponentTopRowClear = prev[opponentSymbol].board[0]?.every(cell => cell === 0);
 
-            if (garbageToSend > 0 && !prev[opponentSymbol].gameOver && isOpponentTopRowClear) {
-                newOpponentBoard = prev[opponentSymbol].board.slice();
-                for (let i = 0; i < garbageToSend; i++) {
-                    newOpponentBoard.shift();
-                    const garbageRow = Array(COLS).fill(8);
-                    garbageRow[Math.floor(Math.random() * COLS)] = 0;
-                    newOpponentBoard.push(garbageRow);
-                }
-            }
+        if (garbageToSend > 0 && !prev[opponentSymbol].gameOver && isOpponentTopRowClear) {
+          newOpponentBoard = prev[opponentSymbol].board.slice();
+          for (let i = 0; i < garbageToSend; i++) {
+            newOpponentBoard.shift();
+            const garbageRow = Array(COLS).fill(8);
+            garbageRow[Math.floor(Math.random() * COLS)] = 0;
+            newOpponentBoard.push(garbageRow);
+          }
+        }
 
-            return {
-                ...prev,
-                [mySymbol]: { ...prev[mySymbol], board: sweptBoard, score: prev[mySymbol].score + (linesCleared * 10) },
-                [opponentSymbol]: { ...prev[opponentSymbol], board: newOpponentBoard }
-            };
-        });
-
-        const delay = linesCleared > 0 ? 300 : 0;
-        const resetTimeout = setTimeout(() => {
-            resetPlayer();
-            setIsLocking(false);
-        }, delay);
-
-        return () => clearTimeout(resetTimeout);
+        return {
+          ...prev,
+          [mySymbol]: { ...prev[mySymbol], board: sweptBoard, score: prev[mySymbol].score + (linesCleared * 10) },
+          [opponentSymbol]: { ...prev[opponentSymbol], board: newOpponentBoard }
+        };
+      });
+      
+      setResetDelay(linesCleared > 0 ? 300 : 0);
     }
-}, [player.collided, isLocking, gameState, mySymbol, opponentSymbol, setGameState, resetPlayer]);
+  }, [player.collided, isLocking, gameState, mySymbol, opponentSymbol, setGameState]);
 
+  useEffect(() => {
+    if (resetDelay === null) return;
+
+    const timer = setTimeout(() => {
+      resetPlayer();
+      setIsLocking(false);
+      setResetDelay(null);
+    }, resetDelay);
+
+    return () => clearTimeout(timer);
+  }, [resetDelay, resetPlayer]);
 
   const animate = useCallback((time = 0) => {
     const deltaTime = time - lastTimeRef.current;
