@@ -337,12 +337,13 @@ export default function Tetris({ sessionId, myAddress }) {
 
             <div className="controls-info mt-4">
                 {isMobile() ? (
-                    <div className="mobile-controls grid grid-cols-3 gap-2 p-2 bg-gray-800 rounded-lg max-w-xs mx-auto">
-                      <button className="btn-control" onClick={() => move(-1)}>◀</button>
-                      <button className="btn-control" onClick={() => playerRotate(board)}>↺</button>
-                      <button className="btn-control" onClick={() => move(1)}>▶</button>
-                      <button className="btn-control col-span-3" onClick={drop}>▼</button>
-                      <button className="btn-control col-span-3" onClick={hardDrop}>DROP</button>
+                    <div className="mobile-controls grid grid-cols-3 gap-4 p-4 bg-gray-800 rounded-xl max-w-sm mx-auto">
+                      <button className="btn-control text-2xl py-3 rounded-lg bg-gray-700 hover:bg-gray-600 active:bg-gray-500" onClick={() => move(-1)}>◀</button>
+                      <button className="btn-control text-2xl py-3 rounded-lg bg-gray-700 hover:bg-gray-600 active:bg-gray-500" onClick={() => playerRotate(board)}>↺</button>
+                      <button className="btn-control text-2xl py-3 rounded-lg bg-gray-700 hover:bg-gray-600 active:bg-gray-500" onClick={() => move(1)}>▶</button>
+                    
+                      <button className="btn-control col-span-3 text-xl py-3 rounded-lg bg-blue-700 hover:bg-blue-600 active:bg-blue-500" onClick={drop}>▼</button>
+                      <button className="btn-control col-span-3 text-xl py-3 rounded-lg bg-red-700 hover:bg-red-600 active:bg-red-500" onClick={hardDrop}>DROP</button>
                     </div>
                 ) : (
                     <div className="pc-controls bg-gray-800 p-3 rounded-lg text-sm">
