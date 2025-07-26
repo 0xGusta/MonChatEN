@@ -6,7 +6,7 @@ const BOARD_HEIGHT = 20;
 
 const isMobile = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-const BLOCK_SIZE = isMobile() ? 14 : 20;
+const BLOCK_SIZE = isMobile() ? 12 : 20;
 
 const TETROMINOS = {
     'I': { shape: [[1, 1, 1, 1]], color: '#00FFFF' },
@@ -33,15 +33,9 @@ const getRandomTetromino = (seed) => {
 
 const useGameLoop = (callback, speed) => {
     const savedCallback = useRef();
-
+    useEffect(() => { savedCallback.current = callback; }, [callback]);
     useEffect(() => {
-        savedCallback.current = callback;
-    }, [callback]);
-
-    useEffect(() => {
-        function tick() {
-            savedCallback.current();
-        }
+        function tick() { savedCallback.current(); }
         if (speed !== null) {
             let id = setInterval(tick, speed);
             return () => clearInterval(id);
@@ -77,32 +71,13 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
     const [score, setScore] = useState(0);
     const [gameSpeed, setGameSpeed] = useState(1000);
     const [pieceSeed, setPieceSeed] = useState(mySeed);
-    const [gameStatus, setGameStatus] = useStateTogether(`tetris-status-${sessionId}`, 'playing');
     const [winner, setWinner] = useState(null);
 
+    const [gameStatus, setGameStatus] = useStateTogether(`tetris-status-${sessionId}`, 'playing');
     const [sharedState, setSharedState] = useStateTogether(`tetris-players-${sessionId}`, {});
-    
-    const handleCloseGame = useCallback(() => {
-        setGameStatus('closed');
 
-        if (onGameEnd) {
-            onGameEnd(sessionId, 'closed');
-        }
-    }, [setGameStatus, onGameEnd, sessionId]);
-
-    useEffect(() => {
-
-        if (gameStatus === 'playing') {
-             setSharedState(prev => ({
-                ...prev,
-                [myAddress]: { board, player, score }
-            }));
-        }
-    }, [board, player, score, myAddress, setSharedState, gameStatus]);
-    
     const opponentAddress = Object.keys(sharedState).find(addr => addr !== myAddress && sharedState[addr]);
     const opponentData = opponentAddress ? sharedState[opponentAddress] : null;
-
     const opponentBoard = opponentData?.board || createEmptyBoard();
     const opponentPlayer = opponentData?.player;
     const opponentScore = opponentData?.score ?? 0;
@@ -111,11 +86,40 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
     const nextCanvasRef = useRef(null);
     const opponentBoardCanvasRef = useRef(null);
 
+    const handleCloseGame = useCallback(() => {
+        setGameStatus('closed');
+    }, [setGameStatus]);
+
+    useEffect(() => {
+        if (gameStatus !== 'playing') {
+            setGameSpeed(null);
+
+            if (gameStatus === 'gameOver' && !winner) {
+                if (score > opponentScore) setWinner('You');
+                else if (opponentScore > score) setWinner('Opponent');
+                else setWinner('draw');
+            }
+
+            const timer = setTimeout(() => {
+                if (onGameEnd) {
+                    onGameEnd(sessionId, gameStatus);
+                }
+            }, 300);
+
+            return () => clearTimeout(timer);
+        }
+    }, [gameStatus, winner, score, opponentScore, onGameEnd, sessionId]);
+
+    useEffect(() => {
+        if (gameStatus === 'playing') {
+            setSharedState(prev => ({ ...prev, [myAddress]: { board, player, score } }));
+        }
+    }, [board, player, score, myAddress, setSharedState, gameStatus]);
+
     const resetPlayer = useCallback(() => {
         const newTetromino = nextTetromino || getRandomTetromino(pieceSeed);
         setPieceSeed(prev => prev + 1);
         const newNextTetromino = getRandomTetromino(pieceSeed + 1);
-
         setNextTetromino(newNextTetromino);
         setPlayer({
             pos: { x: Math.floor(BOARD_WIDTH / 2) - 1, y: 0 },
@@ -123,28 +127,11 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
             collided: false,
         });
     }, [nextTetromino, pieceSeed]);
-    
+
     const setGameOver = useCallback(() => {
         setGameStatus('gameOver');
-        setGameSpeed(null);
     }, [setGameStatus]);
-
-    useEffect(() => {
-        if (gameStatus === 'gameOver' && !winner) {
-            if (score > opponentScore) {
-                setWinner('You');
-            } else if (opponentScore > score) {
-                setWinner('Opponent');
-            } else {
-                setWinner('draw');
-            }
-        }
-        if (gameStatus === 'closed') {
-            setGameSpeed(null);
-        }
-    }, [gameStatus, score, opponentScore, winner]);
-
-
+    
     useEffect(() => {
         if (!player.tetromino && gameStatus === 'playing') {
             resetPlayer();
@@ -166,6 +153,15 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
         }
         return false;
     };
+    
+    const drop = useCallback(() => {
+        if (!isColliding(player, board, { x: 0, y: 1 })) {
+            setPlayer(prev => ({ ...prev, pos: { ...prev.pos, y: prev.pos.y + 1 }}));
+        } else {
+            if (player.pos.y < 1) setGameOver();
+            setPlayer(prev => ({ ...prev, collided: true }));
+        }
+    }, [board, player, setGameOver]);
 
     const rotate = (matrix) => {
         const transposed = matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
@@ -176,7 +172,6 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
         if (gameStatus !== 'playing') return;
         const clonedPlayer = JSON.parse(JSON.stringify(player));
         clonedPlayer.tetromino.shape = rotate(clonedPlayer.tetromino.shape);
-
         const pos = clonedPlayer.pos.x;
         let offset = 1;
         while (isColliding(clonedPlayer, board, { x: 0, y: 0 })) {
@@ -190,38 +185,17 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
         setPlayer(clonedPlayer);
     };
 
-    const updatePlayerPos = ({ x, y, collided }) => {
-        setPlayer(prev => ({
-            ...prev,
-            pos: { x: prev.pos.x + x, y: prev.pos.y + y },
-            collided,
-        }));
-    };
-    
-    const drop = useCallback(() => {
-        if (!isColliding(player, board, { x: 0, y: 1 })) {
-            updatePlayerPos({ x: 0, y: 1, collided: false });
-        } else {
-            if (player.pos.y < 1) {
-                setGameOver();
-            }
-            setPlayer(prev => ({ ...prev, collided: true }));
-        }
-    }, [board, player, setGameOver]);
-
     const hardDrop = () => {
         if (gameStatus !== 'playing') return;
         let y = 0;
-        while (!isColliding(player, board, { x: 0, y: y + 1 })) {
-            y++;
-        }
-        updatePlayerPos({ x: 0, y, collided: true });
+        while (!isColliding(player, board, { x: 0, y: y + 1 })) { y++; }
+        setPlayer(prev => ({ ...prev, pos: { ...prev.pos, y: prev.pos.y + y }, collided: true }));
     };
 
     const move = (dir) => {
         if (gameStatus !== 'playing') return;
         if (!isColliding(player, board, { x: dir, y: 0 })) {
-            updatePlayerPos({ x: dir, y: 0, collided: false });
+            setPlayer(prev => ({...prev, pos: {...prev.pos, x: prev.pos.x + dir}}));
         }
     };
 
@@ -233,16 +207,12 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
                     if (value !== 0) {
                         const boardY = y + player.pos.y;
                         const boardX = x + player.pos.x;
-                        if (boardY >= 0) {
-                            newBoard[boardY][boardX] = [1, player.tetromino.color];
-                        }
+                        if (boardY >= 0) newBoard[boardY][boardX] = [1, player.tetromino.color];
                     }
                 });
             });
-
             const clearedBoard = newBoard.filter(row => !row.every(cell => cell[0] !== 0));
             const linesCleared = BOARD_HEIGHT - clearedBoard.length;
-
             if (linesCleared > 0) {
                 const newLines = Array.from({ length: linesCleared }, () => Array(BOARD_WIDTH).fill([0, '#000000']));
                 setBoard([...newLines, ...clearedBoard]);
@@ -254,17 +224,12 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
         }
     }, [player.collided, board, player.tetromino, player.pos, resetPlayer]);
 
-    useGameLoop(() => {
-        if (gameStatus === 'playing') {
-            drop();
-        }
-    }, gameSpeed);
+    useGameLoop(() => { if (gameStatus === 'playing') drop(); }, gameSpeed);
 
     const draw = useCallback((canvas, matrix, playerPiece = null) => {
         const context = canvas.getContext('2d');
         context.fillStyle = '#0F0F23';
         context.fillRect(0, 0, canvas.width, canvas.height);
-
         matrix.forEach((row, y) => {
             row.forEach((cell, x) => {
                 if (cell[0] !== 0) {
@@ -273,17 +238,12 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
                 }
             });
         });
-
         if (playerPiece && playerPiece.tetromino) {
             context.fillStyle = playerPiece.tetromino.color;
             playerPiece.tetromino.shape.forEach((row, y) => {
                 row.forEach((value, x) => {
                     if (value !== 0) {
-                        context.fillRect(
-                            (playerPiece.pos.x + x) * BLOCK_SIZE,
-                            (playerPiece.pos.y + y) * BLOCK_SIZE,
-                            BLOCK_SIZE, BLOCK_SIZE
-                        );
+                        context.fillRect((playerPiece.pos.x + x) * BLOCK_SIZE, (playerPiece.pos.y + y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
                     }
                 });
             });
@@ -315,8 +275,7 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
     const handleKeyDown = useCallback((e) => {
         if (gameStatus !== 'playing') return;
         const keyMap = { 'ArrowLeft': () => move(-1), 'ArrowRight': () => move(1), 'ArrowDown': drop, 'ArrowUp': () => playerRotate(board), ' ': hardDrop };
-        const action = keyMap[e.key];
-        if (action) { e.preventDefault(); action(); }
+        if (keyMap[e.key]) { e.preventDefault(); keyMap[e.key](); }
     }, [gameStatus, move, drop, playerRotate, hardDrop, board]);
     
     useEffect(() => {
@@ -326,10 +285,9 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
 
     return (
         <div className="tetris-container flex flex-col items-center p-2 text-white relative">
-
             {gameStatus !== 'playing' && <GameResultDisplay status={gameStatus} winner={winner} onExit={handleCloseGame} />}
             
-            <button onClick={handleCloseGame} className="absolute top-2 right-2 btn-sm btn-circle">✕</button>
+            <button onClick={handleCloseGame} className="absolute top-2 right-2 btn-sm btn-circle z-20">✕</button>
 
             <div className="boards-container flex flex-row justify-center items-start gap-2 md:gap-4">
                 <div className="game-area relative flex flex-col items-center">
