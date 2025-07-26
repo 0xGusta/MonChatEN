@@ -40,6 +40,7 @@ export default function Tetris({ players, sessionId, myAddress, onRematchOffer, 
   const [isLocking, setIsLocking] = useState(false);
   const [isDropping, setIsDropping] = useState(false);
   const [isClearingLines, setIsClearingLines] = useState(false);
+  const [needsReset, setNeedsReset] = useState(false);
   const [blockSize, setBlockSize] = useState(20);
   const dropTime = 1000;
 
@@ -51,6 +52,7 @@ export default function Tetris({ players, sessionId, myAddress, onRematchOffer, 
   const dropCounterRef = useRef(0);
 
   const opponentClosed = playerStatus?.[opponentSymbol] === 'closed';
+  const pieceSequence = gameState?.[`${mySymbol}_pieceSequence`];
 
   useEffect(() => {
     setPlayerStatus(prev => ({ ...prev, [mySymbol]: 'online' }));
@@ -101,23 +103,20 @@ export default function Tetris({ players, sessionId, myAddress, onRematchOffer, 
     }
     return false;
   }, []);
-  
-const pieceSequence = gameState?.[`${mySymbol}_pieceSequence`];
 
-const resetPlayer = useCallback(() => {
+  const resetPlayer = useCallback(() => {
     if (!pieceSequence) return;
-
     const nextShapeIndex = pieceSequence[pieceIndex % pieceSequence.length];
     const newShape = SHAPES[nextShapeIndex];
     if (newShape) {
-        setPlayer({
-            pos: { x: Math.floor(COLS / 2) - Math.floor(newShape[0].length / 2), y: 0 },
-            shape: newShape,
-            collided: false,
-        });
-        setPieceIndex(prev => prev + 1);
+      setPlayer({
+        pos: { x: Math.floor(COLS / 2) - Math.floor(newShape[0].length / 2), y: 0 },
+        shape: newShape,
+        collided: false,
+      });
+      setPieceIndex(prev => prev + 1);
     }
-}, [pieceIndex, mySymbol, pieceSequence]);
+  }, [pieceIndex, mySymbol, pieceSequence]);
 
   useEffect(() => {
     resetPlayer();
@@ -125,16 +124,16 @@ const resetPlayer = useCallback(() => {
 
   useEffect(() => {
     if (player.shape && gameState?.[mySymbol] && !gameState[mySymbol].gameOver) {
-        setGameState(prev => {
-            if (!prev) return prev;
-            if (JSON.stringify(prev[`${mySymbol}_piece`]) === JSON.stringify(player)) {
-                return prev;
-            }
-            return {
-                ...prev,
-                [`${mySymbol}_piece`]: player,
-            };
-        });
+      setGameState(prev => {
+        if (!prev) return prev;
+        if (JSON.stringify(prev[`${mySymbol}_piece`]) === JSON.stringify(player)) {
+          return prev;
+        }
+        return {
+          ...prev,
+          [`${mySymbol}_piece`]: player,
+        };
+      });
     }
   }, [player, mySymbol, gameState, setGameState]);
 
@@ -231,10 +230,11 @@ const resetPlayer = useCallback(() => {
         setIsLocking(true);
         setIsClearingLines(true);
       } else {
-        resetPlayer();
+        setIsLocking(true);
+        setNeedsReset(true);
       }
     }
-  }, [player.collided, isLocking, gameState, mySymbol, opponentSymbol, resetPlayer, setGameState]);
+  }, [player.collided, isLocking, gameState, mySymbol, opponentSymbol, setGameState]);
 
   useEffect(() => {
     if (isClearingLines) {
@@ -247,6 +247,14 @@ const resetPlayer = useCallback(() => {
       return () => clearTimeout(timeoutId);
     }
   }, [isClearingLines, resetPlayer]);
+  
+  useEffect(() => {
+    if (needsReset) {
+        resetPlayer();
+        setIsLocking(false);
+        setNeedsReset(false);
+    }
+  }, [needsReset, resetPlayer]);
 
   const animate = useCallback((time = 0) => {
     const deltaTime = time - lastTimeRef.current;
@@ -510,20 +518,6 @@ const resetPlayer = useCallback(() => {
             )}
             {rematchStatus?.status === 'pending' ? (
               iAmRematchReceiver ? (
-                <>
-                  <p className="mb-2">{getPlayerName(opponentSymbol)} wants a rematch!</p>
-                  <button onClick={handleAcceptRematch} className="btn btn-primary mr-2">
-                    Accept
-                  </button>
-                  <button onClick={handleDeclineRematch} className="btn btn-secondary">
-                    Decline
-                  </button>
-                </>
-              ) : (
-                <p>Waiting for {getPlayerName(opponentSymbol)} to respond...</p>
-              )
-            ) : rematchStatus?.status === 'declined' ? (
-            iAmRematchReceiver ? (
                 <>
                   <p className="mb-2">{getPlayerName(opponentSymbol)} wants a rematch!</p>
                   <button onClick={handleAcceptRematch} className="btn btn-primary mr-2">
