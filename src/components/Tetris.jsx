@@ -4,6 +4,8 @@ import GameControls from './GameControls';
 
 const COLS = 10;
 const ROWS = 20;
+
+const COLORS = [null, '#FF0D72', '#0DC2FF', '#0DFF72', '#F538FF', '#FF8E0D', '#FFE138', '#3877FF', '#6B7280'];
 const SHAPES = [
   null,
   [[1, 1, 1], [0, 1, 0]],
@@ -12,261 +14,509 @@ const SHAPES = [
   [[4, 4, 0], [0, 4, 4]],
   [[5, 0, 0], [5, 5, 5]],
   [[0, 0, 6], [6, 6, 6]],
-  [[7, 7], [7, 7]]
+  [[7, 7], [7, 7]],
 ];
-const COLORS = [null, '#FF0D72', '#0DC2FF', '#0DFF72', '#F538FF', '#FF8E0D', '#FFE138', '#3877FF'];
 
 const createEmptyBoard = () => Array.from({ length: ROWS }, () => Array(COLS).fill(0));
 
-export default function Tetris({ players, sessionId, myAddress }) {
+export default function Tetris({ players, sessionId, myAddress, onGameEnd, onRematchOffer, playerStatus, setPlayerStatus, onCloseGame }) {
   const mySymbol = players?.challenger?.address.toLowerCase() === myAddress.toLowerCase() ? 'P1' : 'P2';
   const opponentSymbol = mySymbol === 'P1' ? 'P2' : 'P1';
 
-  const [gameState, setGameState] = useStateTogether(`tetris-${sessionId}`, {
-    P1: { board: createEmptyBoard(), score: 0, piece: null, pieceIndex: 0, sequence: Array.from({ length: 100 }, () => Math.floor(Math.random() * 7) + 1), gameOver: false },
-    P2: { board: createEmptyBoard(), score: 0, piece: null, pieceIndex: 0, sequence: Array.from({ length: 100 }, () => Math.floor(Math.random() * 7) + 1), gameOver: false },
+  const [gameState, setGameState] = useStateTogether(`tetris-gamestate-${sessionId}`, {
+    P1: { board: createEmptyBoard(), score: 0, lines: 0, gameOver: false },
+    P2: { board: createEmptyBoard(), score: 0, lines: 0, gameOver: false },
+    P1_pieceSequence: Array.from({ length: 100 }, () => Math.floor(Math.random() * 7) + 1),
+    P2_pieceSequence: Array.from({ length: 100 }, () => Math.floor(Math.random() * 7) + 1),
+    status: 'playing',
+    winner: null,
   });
 
-  const blockSize = 20;
-  const dropInterval = 1000;
-  const dropRef = useRef(0);
-  const lastTimeRef = useRef(0);
+  const [rematchStatus, setRematchStatus] = useStateTogether(`tetris-rematch-${sessionId}`, null);
+  const [player, setPlayer] = useState({ pos: { x: 0, y: 0 }, shape: null, collided: false });
+  const [pieceIndex, setPieceIndex] = useState(0);
+  const [isLocking, setIsLocking] = useState(false);
+  const [isDropping, setIsDropping] = useState(false);
+  const [isClearingLines, setIsClearingLines] = useState(false);
+  const [blockSize, setBlockSize] = useState(20);
+  const dropTime = 1000;
+
+  const gameAreaRef = useRef(null);
+  const opponentAreaRef = useRef(null);
+  const nextPieceCanvasRef = useRef(null);
   const requestRef = useRef();
-  const canvasRef = useRef();
-  const opponentCanvasRef = useRef();
-  const nextCanvasRef = useRef();
+  const lastTimeRef = useRef(0);
+  const dropCounterRef = useRef(0);
 
-  const updatePiece = useCallback((modifier) => {
-    setGameState(prev => {
-      if (!prev) return prev;
-      const player = prev[mySymbol];
-      if (!player) return prev;
-      const data = { ...player };
-      data.piece = modifier(data.piece, data.board);
-      return { ...prev, [mySymbol]: data };
-    });
-  }, [mySymbol, setGameState]);
-
-  const resetPiece = useCallback(() => {
-    setGameState(prev => {
-      if (!prev) return prev;
-      const player = prev[mySymbol];
-      if (!player) return prev;
-      const data = { ...player };
-      const nextShapeIndex = data.sequence[data.pieceIndex % data.sequence.length];
-      const newShape = SHAPES[nextShapeIndex];
-      const newPiece = {
-        shape: newShape,
-        pos: { x: Math.floor(COLS / 2) - Math.floor(newShape[0].length / 2), y: 0 }
-      };
-      if (checkCollision(newPiece, data.board)) {
-        data.gameOver = true;
-      } else {
-        data.piece = newPiece;
-        data.pieceIndex++;
-      }
-      return { ...prev, [mySymbol]: data };
-    });
-  }, [mySymbol, setGameState]);
-
-  const drop = useCallback(() => {
-    setGameState(prev => {
-      if (!prev) return prev;
-      const player = prev[mySymbol];
-      if (!player || player.gameOver || !player.piece) return prev;
-      const data = { ...player };
-      const moved = { ...data.piece, pos: { ...data.piece.pos, y: data.piece.pos.y + 1 } };
-      if (checkCollision(moved, data.board)) {
-        const merged = mergePieceToBoard(data.board, data.piece);
-        const [cleaned, lines] = sweepLines(merged);
-        data.board = cleaned;
-        data.score += lines * 10;
-        data.piece = null;
-        return { ...prev, [mySymbol]: data };
-      } else {
-        data.piece = moved;
-        return { ...prev, [mySymbol]: data };
-      }
-    });
-  }, [mySymbol, setGameState]);
-  
-  const move = useCallback((dir) => {
-    updatePiece((piece, board) => {
-      if (!board || !piece) return piece;
-      const moved = { ...piece, pos: { ...piece.pos, x: piece.pos.x + dir } };
-      if (!checkCollision(moved, board)) return moved;
-      return piece;
-    });
-  }, [updatePiece]);
-
-  const rotate = useCallback(() => {
-    updatePiece((piece, board) => {
-      if (!board || !piece) return piece;
-      const rotated = piece.shape[0].map((_, i) => piece.shape.map(r => r[i])).reverse();
-      const test = { ...piece, shape: rotated };
-      if (!checkCollision(test, board)) return test;
-      return piece;
-    });
-  }, [updatePiece]);
-
-  const animate = useCallback((time = 0) => {
-    const delta = time - lastTimeRef.current;
-    lastTimeRef.current = time;
-    dropRef.current += delta;
-    if (dropRef.current > dropInterval) {
-      drop();
-      dropRef.current = 0;
-    }
-    requestRef.current = requestAnimationFrame(animate);
-  }, [drop]);
+  const opponentClosed = playerStatus[opponentSymbol] === 'closed';
 
   useEffect(() => {
-    if (gameState && gameState[mySymbol] && !gameState[mySymbol].piece && !gameState[mySymbol].gameOver) {
-      resetPiece();
-    }
-  }, [gameState, mySymbol, resetPiece]);
+    setPlayerStatus(prev => ({ ...prev, [mySymbol]: 'online' }));
+  }, [mySymbol, setPlayerStatus]);
 
   useEffect(() => {
-    if (gameState && gameState[mySymbol] && !gameState[mySymbol].gameOver) {
-      requestRef.current = requestAnimationFrame(animate);
-    }
-    return () => cancelAnimationFrame(requestRef.current);
-  }, [gameState, mySymbol, animate]);
-
-  useEffect(() => {
-    const handleKey = (e) => {
-      if (!gameState || !gameState[mySymbol] || gameState[mySymbol].gameOver) return;
-      if (['ArrowLeft', 'a'].includes(e.key)) move(-1);
-      else if (['ArrowRight', 'd'].includes(e.key)) move(1);
-      else if (['ArrowUp', 'w', 'q', 'e'].includes(e.key)) rotate();
-      else if (['ArrowDown', 's'].includes(e.key)) drop();
-    };
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [move, drop, rotate, gameState, mySymbol]);
-
-  useEffect(() => {
-    if (!gameState) return;
-    const ctx = canvasRef.current?.getContext('2d');
-    const ctx2 = opponentCanvasRef.current?.getContext('2d');
-    const nextCtx = nextCanvasRef.current?.getContext('2d');
-    if (!ctx || !ctx2) return;
-
-    const drawBoard = (ctx, board, piece) => {
-      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-      board.forEach((row, y) => {
-        row.forEach((val, x) => {
-          if (val !== 0) {
-            ctx.fillStyle = COLORS[val];
-            ctx.fillRect(x * blockSize, y * blockSize, blockSize, blockSize);
-          }
-        });
-      });
-      if (piece) {
-        piece.shape.forEach((row, y) => {
-          row.forEach((val, x) => {
-            if (val !== 0) {
-              ctx.fillStyle = COLORS[val];
-              ctx.fillRect((x + piece.pos.x) * blockSize, (y + piece.pos.y) * blockSize, blockSize, blockSize);
-            }
-          });
-        });
-      }
+    const handleUnload = () => {
+      setPlayerStatus(prev => ({ ...prev, [mySymbol]: 'closed' }));
     };
 
-    const me = gameState[mySymbol];
-    const opp = gameState[opponentSymbol];
-    if (me) drawBoard(ctx, me.board, me.piece);
-    if (opp) drawBoard(ctx2, opp.board, opp.piece);
-
-    if (nextCtx && me) {
-      nextCtx.clearRect(0, 0, nextCtx.canvas.width, nextCtx.canvas.height);
-      const idx = me.sequence[me.pieceIndex % 100];
-      const shape = SHAPES[idx];
-      if (shape) {
-        shape.forEach((row, y) => {
-          row.forEach((val, x) => {
-            if (val !== 0) {
-              nextCtx.fillStyle = COLORS[val];
-              nextCtx.fillRect(x * blockSize, y * blockSize, blockSize, blockSize);
-            }
-          });
-        });
-      }
-    }
-  }, [gameState, mySymbol, opponentSymbol]);
-
-  const mergePieceToBoard = (board, piece) => {
-    const newBoard = board.map(row => [...row]);
-    piece.shape.forEach((row, y) => {
-      row.forEach((val, x) => {
-        if (val !== 0) {
-          const py = y + piece.pos.y;
-          const px = x + piece.pos.x;
-          if (py >= 0 && py < ROWS && px >= 0 && px < COLS) {
-            newBoard[py][px] = val;
-          }
-        }
-      });
+    window.addEventListener('beforeunload', handleUnload);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') handleUnload();
     });
-    return newBoard;
-  };
 
-  const checkCollision = (piece, board) => {
-    for (let y = 0; y < piece.shape.length; y++) {
-      for (let x = 0; x < piece.shape[y].length; x++) {
-        if (piece.shape[y][x] !== 0) {
-          const py = piece.pos.y + y;
-          const px = piece.pos.x + x;
-          if (py >= ROWS || px < 0 || px >= COLS || (py >= 0 && board[py] && board[py][px] !== 0)) {
+    return () => {
+      window.removeEventListener('beforeunload', handleUnload);
+      document.removeEventListener('visibilitychange', handleUnload);
+    };
+  }, [mySymbol, setPlayerStatus]);
+
+  useEffect(() => {
+    const calculateBlockSize = () => {
+      const gameContainer = gameAreaRef.current?.parentElement;
+      if (gameContainer) {
+        const containerWidth = gameContainer.offsetWidth;
+        setBlockSize(containerWidth / COLS);
+      }
+    };
+    calculateBlockSize();
+    window.addEventListener('resize', calculateBlockSize);
+    return () => window.removeEventListener('resize', calculateBlockSize);
+  }, []);
+
+  const checkCollision = useCallback((playerPiece, board) => {
+    if (!playerPiece.shape || !board) return true;
+    const { shape, pos } = playerPiece;
+    for (let y = 0; y < shape.length; y++) {
+      for (let x = 0; x < shape[y].length; x++) {
+        if (shape[y][x] !== 0) {
+          const boardY = y + pos.y;
+          const boardX = x + pos.x;
+          if (!board[boardY] || board[boardY][boardX] === undefined || board[boardY][boardX] !== 0) {
             return true;
           }
         }
       }
     }
     return false;
-  };
+  }, []);
 
-  const sweepLines = (board) => {
-    let lines = 0;
-    const newBoard = board.reduce((acc, row) => {
-      if (row.every(cell => cell !== 0)) {
-        lines++;
-        acc.unshift(Array(COLS).fill(0));
-      } else {
-        acc.push(row);
+  const resetPlayer = useCallback(() => {
+    const sequence = gameState[mySymbol + '_pieceSequence'];
+    if (!sequence) return;
+
+    const nextShapeIndex = sequence[pieceIndex % sequence.length];
+    const newShape = SHAPES[nextShapeIndex];
+    if (newShape) {
+      setPlayer({
+        pos: { x: Math.floor(COLS / 2) - Math.floor(newShape[0].length / 2), y: 0 },
+        shape: newShape,
+        collided: false,
+      });
+      setPieceIndex(prev => prev + 1);
+    }
+  }, [pieceIndex, gameState, mySymbol]);
+
+  useEffect(() => {
+    resetPlayer();
+  }, []);
+
+  const movePlayer = useCallback((dir) => {
+    if (isLocking || !player.shape || gameState.status === 'finished' || opponentClosed) return;
+    const board = gameState[mySymbol].board;
+    if (!checkCollision({ ...player, pos: { x: player.pos.x + dir, y: player.pos.y } }, board)) {
+      setPlayer(prev => ({ ...prev, pos: { x: prev.pos.x + dir, y: prev.pos.y } }));
+    }
+  }, [isLocking, player, gameState, mySymbol, opponentClosed, checkCollision]);
+
+  const dropPlayer = useCallback(() => {
+    if (isLocking || !player.shape || gameState.status === 'finished' || opponentClosed) return;
+    const board = gameState[mySymbol].board;
+    if (!checkCollision({ ...player, pos: { x: player.pos.x, y: player.pos.y + 1 } }, board)) {
+      setPlayer(prev => ({ ...prev, pos: { x: prev.pos.x, y: prev.pos.y + 1 } }));
+    } else {
+      if (player.pos.y < 1) {
+        setGameState(prev => ({
+          ...prev,
+          status: 'finished',
+          winner: opponentSymbol,
+          [mySymbol]: { ...prev[mySymbol], gameOver: true },
+        }));
+        return;
       }
-      return acc;
-    }, []);
-    return [newBoard, lines];
+      setPlayer(prev => ({ ...prev, collided: true }));
+    }
+  }, [isLocking, player, gameState, mySymbol, opponentSymbol, opponentClosed, checkCollision, setGameState]);
+
+  const playerRotate = useCallback((dir) => {
+    if (isLocking || !player.shape || gameState.status === 'finished' || opponentClosed) return;
+    const clonedPlayer = JSON.parse(JSON.stringify(player));
+    const rotate = (matrix) => {
+      const transposed = matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
+      return dir > 0 ? transposed.map(row => row.reverse()) : transposed.reverse();
+    };
+    clonedPlayer.shape = rotate(clonedPlayer.shape);
+    let offset = 1;
+    const board = gameState[mySymbol].board;
+    while (checkCollision(clonedPlayer, board)) {
+      clonedPlayer.pos.x += offset;
+      offset = -(offset + (offset > 0 ? 1 : -1));
+      if (Math.abs(offset) > clonedPlayer.shape[0].length) return;
+    }
+    setPlayer(clonedPlayer);
+  }, [isLocking, player, gameState, mySymbol, opponentClosed, checkCollision]);
+
+  useEffect(() => {
+    if (player.collided && !isLocking) {
+      const newMyBoard = gameState[mySymbol].board.map(row => [...row]);
+      player.shape.forEach((row, y) => {
+        row.forEach((value, x) => {
+          if (value !== 0) newMyBoard[y + player.pos.y][x + player.pos.x] = value;
+        });
+      });
+
+      let linesCleared = 0;
+      const sweptBoard = newMyBoard.reduce((acc, row) => {
+        if (row.every(cell => cell !== 0)) {
+          linesCleared++;
+          acc.unshift(Array(COLS).fill(0));
+        } else {
+          acc.push(row);
+        }
+        return acc;
+      }, []);
+      
+      const garbageToSend = Math.max(0, linesCleared - 1);
+
+      setGameState(prev => {
+        let newOpponentBoard = prev[opponentSymbol].board;
+        const isOpponentTopRowClear = prev[opponentSymbol].board[0]?.every(cell => cell === 0);
+
+        if (garbageToSend > 0 && !prev[opponentSymbol].gameOver && isOpponentTopRowClear) {
+          newOpponentBoard = prev[opponentSymbol].board.slice();
+          for (let i = 0; i < garbageToSend; i++) {
+            newOpponentBoard.shift();
+            const garbageRow = Array(COLS).fill(8);
+            garbageRow[Math.floor(Math.random() * COLS)] = 0;
+            newOpponentBoard.push(garbageRow);
+          }
+        }
+
+        return {
+          ...prev,
+          [mySymbol]: { ...prev[mySymbol], board: sweptBoard, score: prev[mySymbol].score + (linesCleared * 10) },
+          [opponentSymbol]: { ...prev[opponentSymbol], board: newOpponentBoard }
+        };
+      });
+      
+      if (linesCleared > 0) {
+        setIsLocking(true);
+        setIsClearingLines(true);
+      } else {
+        resetPlayer();
+      }
+    }
+  }, [player.collided, isLocking, gameState, mySymbol, opponentSymbol, resetPlayer, setGameState]);
+
+  useEffect(() => {
+    if (isClearingLines) {
+      const timeoutId = setTimeout(() => {
+        resetPlayer();
+        setIsLocking(false);
+        setIsClearingLines(false);
+      }, 300);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [isClearingLines, resetPlayer]);
+
+  const animate = useCallback((time = 0) => {
+    const deltaTime = time - lastTimeRef.current;
+    lastTimeRef.current = time;
+    dropCounterRef.current += deltaTime;
+    if (dropCounterRef.current > dropTime) {
+      dropPlayer();
+      dropCounterRef.current = 0;
+    }
+    requestRef.current = requestAnimationFrame(animate);
+  }, [dropPlayer, dropTime]);
+
+  useEffect(() => {
+    if (gameState.status === 'playing' && !gameState[mySymbol].gameOver) {
+      requestRef.current = requestAnimationFrame(animate);
+    } else {
+      cancelAnimationFrame(requestRef.current);
+    }
+    return () => cancelAnimationFrame(requestRef.current);
+  }, [gameState.status, gameState[mySymbol].gameOver, animate]);
+
+  useEffect(() => {
+    const myCtx = gameAreaRef.current?.getContext('2d');
+    const opponentCtx = opponentAreaRef.current?.getContext('2d');
+    const nextPieceCtx = nextPieceCanvasRef.current?.getContext('2d');
+    if (!myCtx || !opponentCtx) return;
+
+    const drawBoard = (ctx, board, currentPlayer = null, currentBlockSize) => {
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      board.forEach((row, y) => {
+        row.forEach((value, x) => {
+          if (value !== 0) {
+            ctx.fillStyle = COLORS[value];
+            ctx.fillRect(x * currentBlockSize, y * currentBlockSize, currentBlockSize, currentBlockSize);
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x * currentBlockSize, y * currentBlockSize, currentBlockSize, currentBlockSize);
+          }
+        });
+      });
+
+      if (currentPlayer?.shape) {
+        currentPlayer.shape.forEach((row, y) => {
+          row.forEach((value, x) => {
+            if (value !== 0) {
+              const px = (currentPlayer.pos.x + x) * currentBlockSize;
+              const py = (currentPlayer.pos.y + y) * currentBlockSize;
+              ctx.fillStyle = COLORS[value];
+              ctx.fillRect(px, py, currentBlockSize, currentBlockSize);
+              ctx.strokeStyle = '#000000';
+              ctx.lineWidth = 1;
+              ctx.strokeRect(px, py, currentBlockSize, currentBlockSize);
+            }
+          });
+        });
+      }
+    };
+
+    const drawNextPiece = (ctx, shape, currentBlockSize) => {
+        if (!ctx) return;
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        if (!shape) return;
+
+        const colorIndex = shape.flat().find(val => val !== 0) || 0;
+        const color = COLORS[colorIndex];
+        const shapeWidth = shape[0].length;
+        const shapeHeight = shape.length;
+        const canvasHeightInBlocks = 2.5;
+        const offsetX = (4 - shapeWidth) / 2;
+        const offsetY = (canvasHeightInBlocks - shapeHeight) / 2;
+
+        shape.forEach((row, y) => {
+            row.forEach((value, x) => {
+                if (value !== 0) {
+                    ctx.fillStyle = color;
+                    ctx.fillRect((offsetX + x) * currentBlockSize, (offsetY + y) * currentBlockSize, currentBlockSize, currentBlockSize);
+                    ctx.strokeStyle = '#000000';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect((offsetX + x) * currentBlockSize, (offsetY + y) * currentBlockSize, currentBlockSize, currentBlockSize);
+                }
+            });
+        });
+    };
+
+    drawBoard(myCtx, gameState[mySymbol].board, player, blockSize);
+    drawBoard(opponentCtx, gameState[opponentSymbol].board, null, blockSize);
+
+    const mySequence = gameState[mySymbol + '_pieceSequence'];
+    if (mySequence && mySequence[pieceIndex]) {
+        const nextShape = SHAPES[mySequence[pieceIndex]];
+        drawNextPiece(nextPieceCtx, nextShape, blockSize);
+    } else if (nextPieceCtx) {
+        nextPieceCtx.clearRect(0, 0, nextPieceCtx.canvas.width, nextPieceCtx.canvas.height);
+    }
+
+  }, [gameState, player, mySymbol, opponentSymbol, pieceIndex, blockSize]);
+
+  const handleRematchRequest = () => {
+    if (!players || opponentClosed) return;
+    setRematchStatus({ by: mySymbol, status: 'pending' });
+    onRematchOffer(sessionId, mySymbol, 'pending');
   };
 
-  if (!gameState || !gameState.P1 || !gameState.P2) {
-    return <p>Loading or synchronizing game...</p>;
-  }
+  const handleAcceptRematch = () => {
+    setGameState({
+      P1: { board: createEmptyBoard(), score: 0, lines: 0, gameOver: false },
+      P2: { board: createEmptyBoard(), score: 0, lines: 0, gameOver: false },
+      P1_pieceSequence: Array.from({ length: 100 }, () => Math.floor(Math.random() * 7) + 1),
+      P2_pieceSequence: Array.from({ length: 100 }, () => Math.floor(Math.random() * 7) + 1),
+      status: 'playing',
+      winner: null,
+    });
+    setPieceIndex(0);
+    setRematchStatus(null);
+    setPlayerStatus({ P1: 'online', P2: 'online' });
+    onRematchOffer(sessionId, mySymbol, 'accepted');
+    resetPlayer();
+  };
 
-  const me = gameState[mySymbol];
-  const opp = gameState[opponentSymbol];
+  const handleDeclineRematch = () => {
+    onRematchOffer(sessionId, mySymbol, 'declined');
+    setRematchStatus(prev => ({ ...prev, status: 'declined' }));
+  };
+
+  const handleKeyDown = useCallback((e) => {
+    if (isLocking || gameState.status === 'finished' || opponentClosed) return;
+    const key = e.key.toLowerCase();
+    if (['a', 'arrowleft', 'd', 'arrowright', 's', 'arrowdown', 'w', 'arrowup', 'q', 'e'].includes(key)) {
+      e.preventDefault();
+    }
+    if (key === 'a' || key === 'arrowleft') movePlayer(-1);
+    else if (key === 'd' || key === 'arrowright') movePlayer(1);
+    else if (key === 's' || key === 'arrowdown') {
+      if (!isDropping) {
+        setIsDropping(true);
+        dropPlayer();
+      }
+    }
+    else if (key === 'w' || key === 'arrowup') playerRotate(1);
+    else if (key === 'q') playerRotate(-1);
+    else if (key === 'e') playerRotate(1);
+  }, [isLocking, movePlayer, dropPlayer, playerRotate, gameState.status, opponentClosed, isDropping]);
+
+  const handleKeyUp = useCallback((e) => {
+    const key = e.key.toLowerCase();
+    if (key === 's' || key === 'arrowdown') {
+      setIsDropping(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [handleKeyDown, handleKeyUp]);
+
+  const getPlayerName = (symbol) => {
+    if (!players) return '';
+    if (symbol === 'P1') return players.challenger?.username || 'Player 1';
+    if (symbol === 'P2') return players.opponent?.username || 'Player 2';
+    return '';
+  };
+  
+  const iAmRematchRequester = rematchStatus && rematchStatus.by === mySymbol;
+  const iAmRematchReceiver = rematchStatus && rematchStatus.by === opponentSymbol;
+
+  const renderPlayerArea = (symbol, isOpponent = false) => {
+    const areaRef = isOpponent ? opponentAreaRef : gameAreaRef;
+    const playerData = gameState[symbol] || { board: createEmptyBoard(), score: 0, gameOver: false };
+
+    return (
+      <div className="text-center flex flex-col items-center">
+        <h3 className="font-bold text-sm sm:text-base mb-1">
+          {getPlayerName(symbol)} {!isOpponent ? '(You)' : ''}
+        </h3>
+        
+        <div className="w-[40vw] md:w-[40vw] max-w-[150px] md:max-w-[200px]">
+          <canvas
+            ref={areaRef}
+            width={COLS * blockSize}
+            height={ROWS * blockSize}
+            className={`w-full h-auto border-2 bg-darkCard ${isOpponent ? 'border-gray-600' : 'border-monad'}`}
+          />
+        </div>
+
+        <div className="flex flex-row justify-around items-center w-full mt-2 px-1">
+          <div className="text-white text-xs sm:text-sm">Score: {playerData.score}</div>
+          {!isOpponent && (
+            <div className="flex flex-col items-center">
+              <h4 className="text-xs font-semibold">Next</h4>
+              <canvas
+                ref={nextPieceCanvasRef}
+                width={blockSize * 4}
+                height={blockSize * 2.5}
+                className="border border-gray-400 bg-darkCard"
+              />
+            </div>
+          )}
+        </div>
+
+        {playerData.gameOver && (
+          <div className="text-red-500 font-bold text-xl sm:text-2xl mt-1">GAME OVER</div>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <div className="flex flex-col items-center">
-      <div className="flex gap-4">
-        <div className="flex flex-col items-center">
-          <p className="text-white text-sm mb-1">You</p>
-          <canvas ref={canvasRef} width={COLS * blockSize} height={ROWS * blockSize} className="bg-black border" />
-          <canvas ref={nextCanvasRef} width={blockSize * 4} height={blockSize * 2.5} className="mt-2 bg-black border" />
-          <p className="text-white text-xs mt-1">Score: {me?.score ?? 0}</p>
-        </div>
-        <div className="flex flex-col items-center">
-          <p className="text-white text-sm mb-1">Opponent</p>
-          <canvas ref={opponentCanvasRef} width={COLS * blockSize} height={ROWS * blockSize} className="bg-black border" />
-          <p className="text-white text-xs mt-1">Score: {opp?.score ?? 0}</p>
-        </div>
+    <div className="flex flex-col items-center max-h-[90vh] overflow-y-auto">
+      <div className="flex flex-row justify-center items-center md:items-start gap-y-1 md:gap-x-1 w-full px-1">
+        {renderPlayerArea(mySymbol, false)}
+        {renderPlayerArea(opponentSymbol, true)}
       </div>
-      <div className="mt-4 w-full max-w-xs">
-        <GameControls onMove={move} onRotate={rotate} onDrop={drop} />
+
+      {gameState.status === 'playing' &&
+        !gameState[mySymbol].gameOver &&
+        !gameState[opponentSymbol].gameOver &&
+        !opponentClosed && (
+          <>
+            <div className="block md:hidden mt-4 w-full max-w-xs">
+              <GameControls onMove={movePlayer} onRotate={playerRotate} onDrop={dropPlayer} />
+            </div>
+
+            <div className="hidden md:flex flex-col items-center mt-4 w-full max-w-xs text-white text-sm">
+              <p className="mb-2 font-semibold">Controls:</p>
+              <p>← / A : Move Left</p>
+              <p>→ / D : Move Right</p>
+              <p>↑ or W and Q / E: Rotate</p>
+              <p>↓ / S : Soft Drop</p>
+            </div>
+          </>
+        )}
+
+      <div className="text-center mt-4">
+        {opponentClosed ? (
+          <>
+            <p className="mb-2 text-lg font-semibold">The opponent has left the game.</p>
+            <button onClick={onCloseGame} className="btn btn-secondary">
+              Close
+            </button>
+          </>
+        ) : gameState.status === 'finished' ? (
+          <>
+            {gameState.winner && (
+              <div className="text-green-400 font-bold text-xl sm:text-2xl mb-4">
+                Winner: {getPlayerName(gameState.winner)}
+              </div>
+            )}
+            {rematchStatus?.status === 'pending' ? (
+              iAmRematchReceiver ? (
+                <>
+                  <p className="mb-2">{getPlayerName(opponentSymbol)} wants a rematch!</p>
+                  <button onClick={handleAcceptRematch} className="btn btn-primary mr-2">
+                    Accept
+                  </button>
+                  <button onClick={handleDeclineRematch} className="btn btn-secondary">
+                    Decline
+                  </button>
+                </>
+              ) : (
+                <p>Waiting for {getPlayerName(opponentSymbol)} to respond...</p>
+              )
+            ) : rematchStatus?.status === 'declined' ? (
+              <>
+                <p className="mb-2">
+                  {iAmRematchRequester
+                    ? `${getPlayerName(opponentSymbol)} declined the rematch.`
+                    : 'You declined the rematch.'}
+                </p>
+                <button onClick={onCloseGame} className="btn btn-secondary">
+                  Close
+                </button>
+              </>
+            ) : (
+              <div className="flex gap-2 justify-center">
+                <button onClick={handleRematchRequest} className="btn btn-primary">
+                  Play Again?
+                </button>
+                <button onClick={onCloseGame} className="btn btn-secondary">
+                  Close
+                </button>
+              </div>
+            )}
+          </>
+        ) : null}
       </div>
-      {me?.gameOver && <p className="text-red-500 text-xl mt-4">Game Over</p>}
     </div>
   );
 }
