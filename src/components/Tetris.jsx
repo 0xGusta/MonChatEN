@@ -36,12 +36,9 @@ export default function Tetris({ players, sessionId, myAddress }) {
   const opponentCanvasRef = useRef();
   const nextCanvasRef = useRef();
 
-  if (!gameState || !gameState.P1 || !gameState.P2) {
-    return <p>Synchronizing game...</p>;
-  }
-
   const updatePiece = useCallback((modifier) => {
     setGameState(prev => {
+      if (!prev) return prev;
       const player = prev[mySymbol];
       if (!player) return prev;
       const data = { ...player };
@@ -49,51 +46,6 @@ export default function Tetris({ players, sessionId, myAddress }) {
       return { ...prev, [mySymbol]: data };
     });
   }, [mySymbol, setGameState]);
-
-  const mergePieceToBoard = (board, piece) => {
-    const newBoard = board.map(row => [...row]);
-    piece.shape.forEach((row, y) => {
-      row.forEach((val, x) => {
-        if (val !== 0) {
-          const py = y + piece.pos.y;
-          const px = x + piece.pos.x;
-          if (py >= 0 && py < ROWS && px >= 0 && px < COLS) {
-            newBoard[py][px] = val;
-          }
-        }
-      });
-    });
-    return newBoard;
-  };
-
-  const checkCollision = (piece, board) => {
-    for (let y = 0; y < piece.shape.length; y++) {
-      for (let x = 0; x < piece.shape[y].length; x++) {
-        if (piece.shape[y][x] !== 0) {
-          const py = piece.pos.y + y;
-          const px = piece.pos.x + x;
-          if (py >= ROWS || px < 0 || px >= COLS || (py >= 0 && board[py][px] !== 0)) {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
-  };
-
-  const sweepLines = (board) => {
-    let lines = 0;
-    const newBoard = board.reduce((acc, row) => {
-      if (row.every(cell => cell !== 0)) {
-        lines++;
-        acc.unshift(Array(COLS).fill(0));
-      } else {
-        acc.push(row);
-      }
-      return acc;
-    }, []);
-    return [newBoard, lines];
-  };
 
   const resetPiece = useCallback(() => {
     setGameState(prev => {
@@ -137,7 +89,7 @@ export default function Tetris({ players, sessionId, myAddress }) {
       }
     });
   }, [mySymbol, setGameState]);
-
+  
   const move = useCallback((dir) => {
     updatePiece((piece, board) => {
       if (!board || !piece) return piece;
@@ -157,12 +109,6 @@ export default function Tetris({ players, sessionId, myAddress }) {
     });
   }, [updatePiece]);
 
-  useEffect(() => {
-    if (!gameState[mySymbol]?.piece && !gameState[mySymbol]?.gameOver) {
-      resetPiece();
-    }
-  }, [gameState, mySymbol, resetPiece]);
-
   const animate = useCallback((time = 0) => {
     const delta = time - lastTimeRef.current;
     lastTimeRef.current = time;
@@ -175,7 +121,13 @@ export default function Tetris({ players, sessionId, myAddress }) {
   }, [drop]);
 
   useEffect(() => {
-    if (!gameState[mySymbol]?.gameOver) {
+    if (gameState && gameState[mySymbol] && !gameState[mySymbol].piece && !gameState[mySymbol].gameOver) {
+      resetPiece();
+    }
+  }, [gameState, mySymbol, resetPiece]);
+
+  useEffect(() => {
+    if (gameState && gameState[mySymbol] && !gameState[mySymbol].gameOver) {
       requestRef.current = requestAnimationFrame(animate);
     }
     return () => cancelAnimationFrame(requestRef.current);
@@ -183,7 +135,7 @@ export default function Tetris({ players, sessionId, myAddress }) {
 
   useEffect(() => {
     const handleKey = (e) => {
-      if (gameState[mySymbol]?.gameOver) return;
+      if (!gameState || !gameState[mySymbol] || gameState[mySymbol].gameOver) return;
       if (['ArrowLeft', 'a'].includes(e.key)) move(-1);
       else if (['ArrowRight', 'd'].includes(e.key)) move(1);
       else if (['ArrowUp', 'w', 'q', 'e'].includes(e.key)) rotate();
@@ -194,6 +146,7 @@ export default function Tetris({ players, sessionId, myAddress }) {
   }, [move, drop, rotate, gameState, mySymbol]);
 
   useEffect(() => {
+    if (!gameState) return;
     const ctx = canvasRef.current?.getContext('2d');
     const ctx2 = opponentCanvasRef.current?.getContext('2d');
     const nextCtx = nextCanvasRef.current?.getContext('2d');
@@ -230,16 +183,67 @@ export default function Tetris({ players, sessionId, myAddress }) {
       nextCtx.clearRect(0, 0, nextCtx.canvas.width, nextCtx.canvas.height);
       const idx = me.sequence[me.pieceIndex % 100];
       const shape = SHAPES[idx];
-      shape.forEach((row, y) => {
-        row.forEach((val, x) => {
-          if (val !== 0) {
-            nextCtx.fillStyle = COLORS[val];
-            nextCtx.fillRect(x * blockSize, y * blockSize, blockSize, blockSize);
-          }
+      if (shape) {
+        shape.forEach((row, y) => {
+          row.forEach((val, x) => {
+            if (val !== 0) {
+              nextCtx.fillStyle = COLORS[val];
+              nextCtx.fillRect(x * blockSize, y * blockSize, blockSize, blockSize);
+            }
+          });
         });
-      });
+      }
     }
   }, [gameState, mySymbol, opponentSymbol]);
+
+  const mergePieceToBoard = (board, piece) => {
+    const newBoard = board.map(row => [...row]);
+    piece.shape.forEach((row, y) => {
+      row.forEach((val, x) => {
+        if (val !== 0) {
+          const py = y + piece.pos.y;
+          const px = x + piece.pos.x;
+          if (py >= 0 && py < ROWS && px >= 0 && px < COLS) {
+            newBoard[py][px] = val;
+          }
+        }
+      });
+    });
+    return newBoard;
+  };
+
+  const checkCollision = (piece, board) => {
+    for (let y = 0; y < piece.shape.length; y++) {
+      for (let x = 0; x < piece.shape[y].length; x++) {
+        if (piece.shape[y][x] !== 0) {
+          const py = piece.pos.y + y;
+          const px = piece.pos.x + x;
+          if (py >= ROWS || px < 0 || px >= COLS || (py >= 0 && board[py] && board[py][px] !== 0)) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  };
+
+  const sweepLines = (board) => {
+    let lines = 0;
+    const newBoard = board.reduce((acc, row) => {
+      if (row.every(cell => cell !== 0)) {
+        lines++;
+        acc.unshift(Array(COLS).fill(0));
+      } else {
+        acc.push(row);
+      }
+      return acc;
+    }, []);
+    return [newBoard, lines];
+  };
+
+  if (!gameState || !gameState.P1 || !gameState.P2) {
+    return <p>Loading or synchronizing game...</p>;
+  }
 
   const me = gameState[mySymbol];
   const opp = gameState[opponentSymbol];
