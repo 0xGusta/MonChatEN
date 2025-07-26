@@ -5,7 +5,6 @@ const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 20;
 
 const isMobile = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
 const BLOCK_SIZE = isMobile() ? 12 : 20;
 
 const TETROMINOS = {
@@ -43,14 +42,7 @@ const useGameLoop = (callback, speed) => {
     }, [speed]);
 };
 
-const GameResultDisplay = ({ status, winner, onExit }) => {
-    let message = "";
-    if (status === 'closed') {
-        message = "Opponent has left the game.";
-    } else if (winner) {
-        message = winner === 'draw' ? "It's a Draw!" : `Winner: ${winner}!`;
-    }
-
+const GameResultDisplay = ({ message, onExit }) => {
     return (
         <div className="game-over-overlay">
             <div className="game-over-box">
@@ -62,8 +54,19 @@ const GameResultDisplay = ({ status, winner, onExit }) => {
     );
 };
 
-export default function Tetris({ sessionId, myAddress, onGameEnd }) {
+
+export default function Tetris({ players, sessionId, myAddress, onGameEnd }) {
     const mySeed = parseInt(myAddress.slice(2, 10), 16);
+
+    const mySymbol = players?.challenger?.address.toLowerCase() === myAddress.toLowerCase() ? 'P1' : 'P2';
+    const opponentSymbol = mySymbol === 'P1' ? 'P2' : 'P1';
+    
+    const [playerStatus, setPlayerStatus] = useStateTogether(`tetris-playerStatus-${sessionId}`, { P1: 'online', P2: 'online' });
+    const [sharedState, setSharedState] = useStateTogether(`tetris-players-${sessionId}`, {});
+
+    const opponentClosed = playerStatus[opponentSymbol] === 'closed';
+    const opponentGameOver = playerStatus[opponentSymbol] === 'gameOver';
+    const iLost = playerStatus[mySymbol] === 'gameOver';
 
     const [board, setBoard] = useState(createEmptyBoard());
     const [player, setPlayer] = useState({ pos: { x: 0, y: 0 }, tetromino: null, collided: false });
@@ -71,13 +74,8 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
     const [score, setScore] = useState(0);
     const [gameSpeed, setGameSpeed] = useState(1000);
     const [pieceSeed, setPieceSeed] = useState(mySeed);
-    const [winner, setWinner] = useState(null);
 
-    const [gameStatus, setGameStatus] = useStateTogether(`tetris-status-${sessionId}`, 'playing');
-    const [sharedState, setSharedState] = useStateTogether(`tetris-players-${sessionId}`, {});
-
-    const opponentAddress = Object.keys(sharedState).find(addr => addr !== myAddress && sharedState[addr]);
-    const opponentData = opponentAddress ? sharedState[opponentAddress] : null;
+    const opponentData = sharedState[opponentSymbol];
     const opponentBoard = opponentData?.board || createEmptyBoard();
     const opponentPlayer = opponentData?.player;
     const opponentScore = opponentData?.score ?? 0;
@@ -85,36 +83,16 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
     const boardCanvasRef = useRef(null);
     const nextCanvasRef = useRef(null);
     const opponentBoardCanvasRef = useRef(null);
-
+    
     const handleCloseGame = useCallback(() => {
-        setGameStatus('closed');
-    }, [setGameStatus]);
+        setPlayerStatus(prev => ({ ...prev, [mySymbol]: 'closed' }));
+        onGameEnd(sessionId, 'closed');
+    }, [mySymbol, onGameEnd, sessionId, setPlayerStatus]);
 
     useEffect(() => {
-        if (gameStatus !== 'playing') {
-            setGameSpeed(null);
+        setSharedState(prev => ({ ...prev, [mySymbol]: { board, player, score } }));
+    }, [board, player, score, mySymbol, setSharedState]);
 
-            if (gameStatus === 'gameOver' && !winner) {
-                if (score > opponentScore) setWinner('You');
-                else if (opponentScore > score) setWinner('Opponent');
-                else setWinner('draw');
-            }
-
-            const timer = setTimeout(() => {
-                if (onGameEnd) {
-                    onGameEnd(sessionId, gameStatus);
-                }
-            }, 300);
-
-            return () => clearTimeout(timer);
-        }
-    }, [gameStatus, winner, score, opponentScore, onGameEnd, sessionId]);
-
-    useEffect(() => {
-        if (gameStatus === 'playing') {
-            setSharedState(prev => ({ ...prev, [myAddress]: { board, player, score } }));
-        }
-    }, [board, player, score, myAddress, setSharedState, gameStatus]);
 
     const resetPlayer = useCallback(() => {
         const newTetromino = nextTetromino || getRandomTetromino(pieceSeed);
@@ -127,16 +105,24 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
             collided: false,
         });
     }, [nextTetromino, pieceSeed]);
-
-    const setGameOver = useCallback(() => {
-        setGameStatus('gameOver');
-    }, [setGameStatus]);
+    
+    const setMyGameOver = useCallback(() => {
+        setGameSpeed(null);
+        setPlayerStatus(prev => ({ ...prev, [mySymbol]: 'gameOver' }));
+    }, [mySymbol, setPlayerStatus]);
     
     useEffect(() => {
-        if (!player.tetromino && gameStatus === 'playing') {
+        if (opponentClosed || opponentGameOver) {
+            setGameSpeed(null);
+        }
+    }, [opponentClosed, opponentGameOver]);
+
+
+    useEffect(() => {
+        if (!player.tetromino && playerStatus[mySymbol] === 'online') {
             resetPlayer();
         }
-    }, [player.tetromino, resetPlayer, gameStatus]);
+    }, [player.tetromino, resetPlayer, playerStatus, mySymbol]);
 
     const isColliding = (p, b, { x: moveX, y: moveY }) => {
         if (!p.tetromino) return false;
@@ -158,10 +144,10 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
         if (!isColliding(player, board, { x: 0, y: 1 })) {
             setPlayer(prev => ({ ...prev, pos: { ...prev.pos, y: prev.pos.y + 1 }}));
         } else {
-            if (player.pos.y < 1) setGameOver();
+            if (player.pos.y < 1) setMyGameOver();
             setPlayer(prev => ({ ...prev, collided: true }));
         }
-    }, [board, player, setGameOver]);
+    }, [board, player, setMyGameOver]);
 
     const rotate = (matrix) => {
         const transposed = matrix[0].map((_, colIndex) => matrix.map(row => row[colIndex]));
@@ -169,7 +155,7 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
     };
 
     const playerRotate = (board) => {
-        if (gameStatus !== 'playing') return;
+        if (iLost || opponentClosed || opponentGameOver) return;
         const clonedPlayer = JSON.parse(JSON.stringify(player));
         clonedPlayer.tetromino.shape = rotate(clonedPlayer.tetromino.shape);
         const pos = clonedPlayer.pos.x;
@@ -186,14 +172,14 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
     };
 
     const hardDrop = () => {
-        if (gameStatus !== 'playing') return;
+        if (iLost || opponentClosed || opponentGameOver) return;
         let y = 0;
         while (!isColliding(player, board, { x: 0, y: y + 1 })) { y++; }
         setPlayer(prev => ({ ...prev, pos: { ...prev.pos, y: prev.pos.y + y }, collided: true }));
     };
 
     const move = (dir) => {
-        if (gameStatus !== 'playing') return;
+        if (iLost || opponentClosed || opponentGameOver) return;
         if (!isColliding(player, board, { x: dir, y: 0 })) {
             setPlayer(prev => ({...prev, pos: {...prev.pos, x: prev.pos.x + dir}}));
         }
@@ -224,7 +210,11 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
         }
     }, [player.collided, board, player.tetromino, player.pos, resetPlayer]);
 
-    useGameLoop(() => { if (gameStatus === 'playing') drop(); }, gameSpeed);
+    useGameLoop(() => {
+        if (!iLost && !opponentClosed && !opponentGameOver) {
+            drop();
+        }
+    }, gameSpeed);
 
     const draw = useCallback((canvas, matrix, playerPiece = null) => {
         const context = canvas.getContext('2d');
@@ -273,20 +263,30 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
     useEffect(() => { if (nextCanvasRef.current) drawNext(nextCanvasRef.current, nextTetromino); }, [nextTetromino, drawNext]);
 
     const handleKeyDown = useCallback((e) => {
-        if (gameStatus !== 'playing') return;
+        if (iLost || opponentClosed || opponentGameOver) return;
         const keyMap = { 'ArrowLeft': () => move(-1), 'ArrowRight': () => move(1), 'ArrowDown': drop, 'ArrowUp': () => playerRotate(board), ' ': hardDrop };
         if (keyMap[e.key]) { e.preventDefault(); keyMap[e.key](); }
-    }, [gameStatus, move, drop, playerRotate, hardDrop, board]);
+    }, [iLost, opponentClosed, opponentGameOver, move, drop, playerRotate, hardDrop, board]);
     
     useEffect(() => {
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [handleKeyDown]);
 
+    let finalMessage = null;
+    if (opponentClosed) {
+        finalMessage = "Opponent has left the game.";
+    } else if (iLost && opponentGameOver) {
+        finalMessage = score > opponentScore ? "You Win!" : (opponentScore > score ? "Opponent Wins!" : "It's a Draw!");
+    } else if (iLost) {
+        finalMessage = "Opponent Wins!";
+    } else if (opponentGameOver) {
+        finalMessage = "You Win!";
+    }
+    
     return (
         <div className="tetris-container flex flex-col items-center p-2 text-white relative">
-            {gameStatus !== 'playing' && <GameResultDisplay status={gameStatus} winner={winner} onExit={handleCloseGame} />}
-            
+            {finalMessage && <GameResultDisplay message={finalMessage} onExit={handleCloseGame} />}
             <button onClick={handleCloseGame} className="absolute top-2 right-2 btn-sm btn-circle z-20">✕</button>
 
             <div className="boards-container flex flex-row justify-center items-start gap-2 md:gap-4">
@@ -310,7 +310,7 @@ export default function Tetris({ sessionId, myAddress, onGameEnd }) {
             </div>
 
             <div className="controls-info mt-4">
-                {isMobile() ? (
+                 {isMobile() ? (
                     <div className="mobile-controls grid grid-cols-3 gap-2 p-2 bg-gray-800 rounded-lg">
                         <button className="btn-control" onClick={() => move(-1)}>◀</button>
                         <button className="btn-control" onClick={() => move(1)}>▶</button>
