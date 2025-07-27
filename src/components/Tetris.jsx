@@ -74,7 +74,6 @@ export default function Tetris({ sessionId, myAddress }) {
     
     const endGame = useCallback(() => {
         if (gameEnded) return;
-        console.log("FIM DE JOGO ACIONADO");
 
         setGameEnded(true);
         setGameSpeed(null);
@@ -197,7 +196,8 @@ export default function Tetris({ sessionId, myAddress }) {
     }, [player.tetromino, resetPlayer, gameEnded]);
 
     const isColliding = (p, b, { x: moveX, y: moveY }) => {
-        if (!p.tetromino) return false;
+
+        if (!p || !p.tetromino) return false;
         for (let y = 0; y < p.tetromino.shape.length; y += 1) {
             for (let x = 0; x < p.tetromino.shape[y].length; x += 1) {
                 if (p.tetromino.shape[y][x] !== 0) {
@@ -218,7 +218,9 @@ export default function Tetris({ sessionId, myAddress }) {
     };
     
     const playerRotate = (board) => {
-        if (gameEnded) return;
+
+        if (gameEnded || !player.tetromino) return;
+
         const clonedPlayer = JSON.parse(JSON.stringify(player));
         clonedPlayer.tetromino.shape = rotate(clonedPlayer.tetromino.shape);
         const pos = clonedPlayer.pos.x;
@@ -252,7 +254,7 @@ export default function Tetris({ sessionId, myAddress }) {
     }, [board, player, gameEnded]);
     
     const hardDrop = () => {
-        if (gameEnded) return;
+        if (gameEnded || !player.tetromino) return;
         let y = 0;
         while (!isColliding(player, board, { x: 0, y: y + 1 })) {
             y++;
@@ -261,14 +263,15 @@ export default function Tetris({ sessionId, myAddress }) {
     };
     
     const move = (dir) => {
-        if (gameEnded) return;
+        if (gameEnded || !player.tetromino) return;
         if (!isColliding(player, board, { x: dir, y: 0 })) {
             updatePlayerPos({ x: dir, y: 0, collided: false });
         }
     };
     
     useEffect(() => {
-        if (player.collided) {
+
+        if (player.collided && player.tetromino) {
             const newBoard = board.map(row => [...row]);
             player.tetromino.shape.forEach((row, y) => {
                 row.forEach((value, x) => {
@@ -305,6 +308,9 @@ export default function Tetris({ sessionId, myAddress }) {
         const context = canvas.getContext('2d');
         context.fillStyle = '#0F0F23';
         context.fillRect(0, 0, canvas.width, canvas.height);
+        
+        if (!matrix) return;
+        
         matrix.forEach((row, y) => {
             row.forEach((cell, x) => {
                 if (cell[0] !== 0) {
@@ -313,6 +319,7 @@ export default function Tetris({ sessionId, myAddress }) {
                 }
             });
         });
+        
         if (playerPiece && playerPiece.tetromino) {
             context.fillStyle = playerPiece.tetromino.color;
             playerPiece.tetromino.shape.forEach((row, y) => {
@@ -348,7 +355,7 @@ export default function Tetris({ sessionId, myAddress }) {
     }, [board, player, draw]);
     
     useEffect(() => {
-        if (opponentBoardCanvasRef.current) draw(opponentBoardCanvasRef.current, opponentPlayer);
+        if (opponentBoardCanvasRef.current) draw(opponentBoardCanvasRef.current, opponentBoard, opponentPlayer);
     }, [opponentBoard, opponentPlayer, draw]);
     
     useEffect(() => {
