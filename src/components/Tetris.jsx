@@ -47,6 +47,7 @@ const useGameLoop = (callback, speed) => {
     }, [speed]);
 };
 
+
 export default function Tetris({ sessionId, myAddress }) {
     const mySeed = parseInt(myAddress.slice(2, 10), 16);
     
@@ -68,7 +69,9 @@ export default function Tetris({ sessionId, myAddress }) {
     const [opponentScore, setOpponentScore] = useState(0);
     const [opponentGameOver, setOpponentGameOver] = useState(false);
     const [opponentAbandoned, setOpponentAbandoned] = useState(false);
+    
     const lastOpponentTimestampRef = useRef(0);
+    const lastMessageReceivedAtRef = useRef(0);
 
     const [sharedState, setSharedState] = useStateTogether(`tetris-game-${sessionId}`, {});
     
@@ -76,13 +79,7 @@ export default function Tetris({ sessionId, myAddress }) {
         setSharedState(prev => ({ 
             ...prev, 
             [myAddress]: { 
-                board, 
-                player, 
-                score, 
-                nextTetromino, 
-                gameOver,
-                gameEnded,
-                winner,
+                board, player, score, nextTetromino, gameOver, gameEnded, winner,
                 timestamp: Date.now()
             } 
         }));
@@ -110,6 +107,8 @@ export default function Tetris({ sessionId, myAddress }) {
             }
             
             lastOpponentTimestampRef.current = opponentData.timestamp;
+
+            lastMessageReceivedAtRef.current = Date.now();
         }
     }, [sharedState, myAddress, gameEnded, opponentGameOver]);
 
@@ -118,8 +117,9 @@ export default function Tetris({ sessionId, myAddress }) {
         if (gameEnded || !opponentAddress) return;
 
         const interval = setInterval(() => {
-            if (lastOpponentTimestampRef.current > 0) {
-                const timeSinceLastUpdate = Date.now() - lastOpponentTimestampRef.current;
+
+            if (lastMessageReceivedAtRef.current > 0) {
+                const timeSinceLastUpdate = Date.now() - lastMessageReceivedAtRef.current;
                 if (timeSinceLastUpdate > OPPONENT_TIMEOUT) {
                     setOpponentAbandoned(true);
                     clearInterval(interval);
@@ -129,7 +129,8 @@ export default function Tetris({ sessionId, myAddress }) {
 
         return () => clearInterval(interval);
     }, [sharedState, gameEnded, myAddress]);
-    
+
+
     const boardCanvasRef = useRef(null);
     const nextCanvasRef = useRef(null);
     const opponentBoardCanvasRef = useRef(null);
@@ -427,7 +428,7 @@ export default function Tetris({ sessionId, myAddress }) {
                             {winner === 'Draw' ? (
                                 <p className="text-xl md:text-2xl mt-2">It's a Draw!</p>
                             ) : (
-                                <p className="text-xl md:text-2xl mt-2">{winner} wins!</p>
+                                <p className="text-xl md:text-2xl mt-2">{winner} wins! 🎉</p>
                             )}
                             <p className="mt-2 text-md">Final Score: {score} vs {opponentScore}</p>
                         </div>
