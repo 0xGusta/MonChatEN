@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useStateTogether } from 'react-together';
+import { getSyncedNow } from '../utils/timeSync';
 
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 20;
@@ -47,7 +48,7 @@ const useGameLoop = (callback, speed) => {
     }, [speed]);
 };
 
-export default function Tetris({ sessionId, myAddress }) {
+export default function Tetris({ sessionId, myAddress, players }) { 
     const mySeed = parseInt(myAddress.slice(2, 10), 16);
     
     const [blockSize, setBlockSize] = useState(20);
@@ -67,10 +68,27 @@ export default function Tetris({ sessionId, myAddress }) {
     const [opponentGameOver, setOpponentGameOver] = useState(false);
     const [opponentAbandoned, setOpponentAbandoned] = useState(false);
     
+    const [opponentName, setOpponentName] = useState('Opponent');
+
     const lastOpponentTimestampRef = useRef(0);
     const lastMessageReceivedAtRef = useRef(0);
 
     const [sharedState, setSharedState] = useStateTogether(`tetris-game-${sessionId}`, {});
+
+    useEffect(() => {
+        if (players && myAddress) {
+            const opponent = players.challenger.address.toLowerCase() === myAddress.toLowerCase() 
+                ? players.opponent 
+                : players.challenger;
+            
+            const name = opponent.username;
+            if (name.length > 12) {
+                setOpponentName(`${name.substring(0, 9)}...`);
+            } else {
+                setOpponentName(name);
+            }
+        }
+    }, [players, myAddress]);
     
     const endGame = useCallback(() => {
         if (gameEnded) return;
@@ -100,7 +118,7 @@ export default function Tetris({ sessionId, myAddress }) {
             ...prev, 
             [myAddress]: { 
                 board, player, score, nextTetromino, gameOver, gameEnded, winner,
-                timestamp: Date.now()
+                timestamp: getSyncedNow()
             } 
         }));
     }, [board, player, score, nextTetromino, gameOver, gameEnded, winner, myAddress, setSharedState]);
@@ -123,7 +141,7 @@ export default function Tetris({ sessionId, myAddress }) {
             }
             
             lastOpponentTimestampRef.current = opponentData.timestamp;
-            lastMessageReceivedAtRef.current = Date.now();
+            lastMessageReceivedAtRef.current = getSyncedNow();
         }
     }, [sharedState, myAddress, gameEnded, opponentGameOver, endGame]);
 
@@ -150,7 +168,7 @@ export default function Tetris({ sessionId, myAddress }) {
 
         const interval = setInterval(() => {
             if (lastMessageReceivedAtRef.current > 0) {
-                const timeSinceLastUpdate = Date.now() - lastMessageReceivedAtRef.current;
+                const timeSinceLastUpdate = getSyncedNow() - lastMessageReceivedAtRef.current;
                 
                 if (timeSinceLastUpdate > OPPONENT_TIMEOUT) {
                     setOpponentAbandoned(true);
@@ -410,7 +428,7 @@ export default function Tetris({ sessionId, myAddress }) {
                         />
                     </div>
                     <div className="opponent-area flex flex-col items-center">
-                        <h3 className="text-lg mb-1">Opponent</h3>
+                        <h3 className="text-lg mb-1" title={players?.opponent?.username}>{opponentName}</h3>
                         <canvas
                             ref={opponentBoardCanvasRef}
                             width={BOARD_WIDTH * blockSize}
@@ -425,7 +443,7 @@ export default function Tetris({ sessionId, myAddress }) {
                                 winner === 'Draw' ? (
                                     <p className="text-xl md:text-2xl mt-2">It's a Draw!</p>
                                 ) : winner ? (
-                                    <p className="text-xl md:text-2xl mt-2">{winner} wins!</p>
+                                    <p className="text-xl md:text-2xl mt-2">{winner === 'You' ? 'You win!' : `${opponentName} wins!`}</p>
                                 ) : null
                             )}
                             
