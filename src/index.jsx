@@ -9,6 +9,8 @@ import { monadTestnet } from 'viem/chains';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi';
 
+console.log("VITE_MULTISYNQ_APP_ID loaded:", import.meta.env.VITE_MULTISYNQ_APP_ID);
+
 const queryClient = new QueryClient();
 
 const projectId = import.meta.env.VITE_PROJECT_ID;
