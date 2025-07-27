@@ -78,7 +78,7 @@ export default function Tetris({ sessionId, myAddress }) {
             const screenHeight = window.innerHeight;
             const screenWidth = window.innerWidth;
 
-            const heightBasedSize = Math.floor((screenHeight * 0.85) / BOARD_HEIGHT);
+            const heightBasedSize = Math.floor((screenHeight * 0.40) / BOARD_HEIGHT);
             
             const widthPercentage = isMobile() ? 0.95 : 0.80;
             const widthBasedSize = Math.floor((screenWidth * widthPercentage / 2) / BOARD_WIDTH);
