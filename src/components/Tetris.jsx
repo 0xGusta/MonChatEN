@@ -47,7 +47,6 @@ const useGameLoop = (callback, speed) => {
     }, [speed]);
 };
 
-
 export default function Tetris({ sessionId, myAddress }) {
     const mySeed = parseInt(myAddress.slice(2, 10), 16);
     
@@ -59,11 +58,9 @@ export default function Tetris({ sessionId, myAddress }) {
     const [gameOver, setGameOver] = useState(false);
     const [gameSpeed, setGameSpeed] = useState(1000);
     const [pieceSeed, setPieceSeed] = useState(mySeed);
-
     const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
     const [gameEnded, setGameEnded] = useState(false);
     const [winner, setWinner] = useState(null);
-
     const [opponentBoard, setOpponentBoard] = useState(createEmptyBoard());
     const [opponentPlayer, setOpponentPlayer] = useState(null);
     const [opponentScore, setOpponentScore] = useState(0);
@@ -111,27 +108,64 @@ export default function Tetris({ sessionId, myAddress }) {
         }
     }, [sharedState, myAddress, gameEnded, opponentGameOver]);
 
-    const opponentAddress = Object.keys(sharedState).find(addr => addr !== myAddress);
-
     useEffect(() => {
-        if (gameEnded || !opponentAddress) {
-            return;
-        }
+        if (gameEnded) return;
 
-        const interval = setInterval(() => {
-            if (lastMessageReceivedAtRef.current > 0) {
+        const timer = setInterval(() => {
+
+            setTimeLeft(prevTime => {
+                if (prevTime <= 1) {
+                    endGame();
+                    return 0;
+                }
+                return prevTime - 1;
+            });
+
+            const opponentAddress = Object.keys(sharedState).find(addr => addr !== myAddress);
+            if (opponentAddress && lastMessageReceivedAtRef.current > 0) {
                 const timeSinceLastUpdate = Date.now() - lastMessageReceivedAtRef.current;
+                
                 if (timeSinceLastUpdate > OPPONENT_TIMEOUT) {
+                    console.log(`ABANDONO DETECTADO: Última msg há ${timeSinceLastUpdate}ms`);
                     setOpponentAbandoned(true);
-                    clearInterval(interval);
                 }
             }
         }, 1000);
 
-        return () => clearInterval(interval);
-    }, [gameEnded, opponentAddress]);
+        return () => clearInterval(timer);
+    }, [gameEnded, sharedState, endGame]);
 
 
+    const endGame = useCallback(() => {
+        if (gameEnded) return;
+        console.log("FIM DE JOGO ACIONADO");
+
+        setGameEnded(true);
+        setGameSpeed(null);
+
+        if (opponentAbandoned) {
+            setWinner('You');
+        } else if (gameOver) {
+            setWinner('Opponent');
+        } else if (opponentGameOver) {
+            setWinner('You');
+        } else {
+            if (score > opponentScore) {
+                setWinner('You');
+            } else if (opponentScore > score) {
+                setWinner('Opponent');
+            } else {
+                setWinner('Draw');
+            }
+        }
+    }, [gameEnded, gameOver, opponentGameOver, opponentAbandoned, score, opponentScore]);
+
+    useEffect(() => {
+        if ((gameOver || opponentGameOver || opponentAbandoned) && !gameEnded) {
+            endGame();
+        }
+    }, [gameOver, opponentGameOver, opponentAbandoned, gameEnded, endGame]);
+    
     const boardCanvasRef = useRef(null);
     const nextCanvasRef = useRef(null);
     const opponentBoardCanvasRef = useRef(null);
@@ -168,52 +202,6 @@ export default function Tetris({ sessionId, myAddress }) {
             resetPlayer();
         }
     }, [player.tetromino, resetPlayer, gameEnded]);
-
-    const endGame = useCallback(() => {
-        if (gameEnded) return;
-
-        setGameEnded(true);
-        setGameSpeed(null);
-
-        if (opponentAbandoned) {
-            setWinner('You');
-        } else if (gameOver) {
-            setWinner('Opponent');
-        } else if (opponentGameOver) {
-            setWinner('You');
-        } else {
-            if (score > opponentScore) {
-                setWinner('You');
-            } else if (opponentScore > score) {
-                setWinner('Opponent');
-            } else {
-                setWinner('Draw');
-            }
-        }
-    }, [gameEnded, gameOver, opponentGameOver, opponentAbandoned, score, opponentScore]);
-
-    useEffect(() => {
-        if (gameEnded) return;
-
-        const timer = setInterval(() => {
-            setTimeLeft(prevTime => {
-                if (prevTime <= 1) {
-                    clearInterval(timer);
-                    endGame();
-                    return 0;
-                }
-                return prevTime - 1;
-            });
-        }, 1000);
-
-        return () => clearInterval(timer);
-    }, [gameEnded, endGame]);
-
-    useEffect(() => {
-        if ((gameOver || opponentGameOver || opponentAbandoned) && !gameEnded) {
-            endGame();
-        }
-    }, [gameOver, opponentGameOver, opponentAbandoned, gameEnded, endGame]);
 
     const isColliding = (p, b, { x: moveX, y: moveY }) => {
         if (!p.tetromino) return false;
@@ -367,7 +355,7 @@ export default function Tetris({ sessionId, myAddress }) {
     }, [board, player, draw]);
     
     useEffect(() => {
-        if (opponentBoardCanvasRef.current) draw(opponentBoardCanvasRef.current, opponentBoard, opponentPlayer);
+        if (opponentBoardCanvasRef.current) draw(opponentBoardCanvasRef.current, opponentPlayer);
     }, [opponentBoard, opponentPlayer, draw]);
     
     useEffect(() => {
