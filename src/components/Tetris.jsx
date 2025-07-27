@@ -48,7 +48,7 @@ const useGameLoop = (callback, speed) => {
     }, [speed]);
 };
 
-export default function Tetris({ sessionId, myAddress, players }) { 
+export default function Tetris({ sessionId, myAddress, players }) {
     const mySeed = parseInt(myAddress.slice(2, 10), 16);
     
     const [blockSize, setBlockSize] = useState(20);
@@ -67,21 +67,28 @@ export default function Tetris({ sessionId, myAddress, players }) {
     const [opponentScore, setOpponentScore] = useState(0);
     const [opponentGameOver, setOpponentGameOver] = useState(false);
     const [opponentAbandoned, setOpponentAbandoned] = useState(false);
-    
     const [opponentName, setOpponentName] = useState('Opponent');
 
     const lastOpponentTimestampRef = useRef(0);
     const lastMessageReceivedAtRef = useRef(0);
+    const opponentAddressRef = useRef(null);
 
     const [sharedState, setSharedState] = useStateTogether(`tetris-game-${sessionId}`, {});
 
+    const sharedStateRef = useRef(sharedState);
     useEffect(() => {
-        if (players && myAddress) {
-            const opponent = players.challenger.address.toLowerCase() === myAddress.toLowerCase() 
+        sharedStateRef.current = sharedState;
+    }, [sharedState]);
+
+    useEffect(() => {
+        if (players && myAddress && !opponentAddressRef.current) {
+            const opponentInfo = players.challenger.address.toLowerCase() === myAddress.toLowerCase() 
                 ? players.opponent 
                 : players.challenger;
             
-            const name = opponent.username;
+            opponentAddressRef.current = opponentInfo.address;
+            
+            const name = opponentInfo.username;
             if (name.length > 12) {
                 setOpponentName(`${name.substring(0, 9)}...`);
             } else {
@@ -124,8 +131,10 @@ export default function Tetris({ sessionId, myAddress, players }) {
     }, [board, player, score, nextTetromino, gameOver, gameEnded, winner, myAddress, setSharedState]);
     
     useEffect(() => {
-        const opponentAddress = Object.keys(sharedState).find(addr => addr !== myAddress);
-        const opponentData = opponentAddress ? sharedState[opponentAddress] : null;
+        const opponentAddr = opponentAddressRef.current;
+        if (!opponentAddr) return;
+
+        const opponentData = sharedState[opponentAddr];
 
         if (opponentData && opponentData.timestamp > lastOpponentTimestampRef.current) {
             setOpponentBoard(opponentData.board || createEmptyBoard());
@@ -143,7 +152,7 @@ export default function Tetris({ sessionId, myAddress, players }) {
             lastOpponentTimestampRef.current = opponentData.timestamp;
             lastMessageReceivedAtRef.current = getSyncedNow();
         }
-    }, [sharedState, myAddress, gameEnded, opponentGameOver, endGame]);
+    }, [sharedState, gameEnded, opponentGameOver, endGame]);
 
     useEffect(() => {
         if (gameEnded) return;
@@ -162,30 +171,34 @@ export default function Tetris({ sessionId, myAddress, players }) {
         return () => clearInterval(timer);
     }, [gameEnded, endGame]);
 
-    const opponentAddress = Object.keys(sharedState).find(addr => addr !== myAddress);
     useEffect(() => {
-        if (gameEnded || !opponentAddress) return;
+        if (gameEnded) return;
 
         const interval = setInterval(() => {
-            if (lastMessageReceivedAtRef.current > 0) {
-                const timeSinceLastUpdate = getSyncedNow() - lastMessageReceivedAtRef.current;
-                
-                if (timeSinceLastUpdate > OPPONENT_TIMEOUT) {
-                    setOpponentAbandoned(true);
-                    clearInterval(interval);
-                }
+            const opponentAddr = opponentAddressRef.current;
+            if (!opponentAddr || lastMessageReceivedAtRef.current === 0) {
+                return;
+            }
+            
+            const currentSharedState = sharedStateRef.current;
+            const opponentIsMissing = !currentSharedState[opponentAddr];
+            const timeSinceLastUpdate = getSyncedNow() - lastMessageReceivedAtRef.current;
+
+            if (opponentIsMissing || timeSinceLastUpdate > OPPONENT_TIMEOUT) {
+                setOpponentAbandoned(true);
+                clearInterval(interval);
             }
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [gameEnded, opponentAddress]);
+    }, [gameEnded]);
 
     useEffect(() => {
         if ((gameOver || opponentGameOver || opponentAbandoned) && !gameEnded) {
             endGame();
         }
     }, [gameOver, opponentGameOver, opponentAbandoned, gameEnded, endGame]);
-        
+
     const boardCanvasRef = useRef(null);
     const nextCanvasRef = useRef(null);
     const opponentBoardCanvasRef = useRef(null);
