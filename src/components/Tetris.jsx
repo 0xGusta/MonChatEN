@@ -283,28 +283,31 @@ export default function Tetris({ sessionId, myAddress }) {
     }, [handleKeyDown]);
     
     return (
-        <div className="tetris-container flex flex-col items-center p-2 text-white">
-            <div className="boards-container flex flex-row justify-center items-start gap-2 md:gap-4">
-                <div className="game-area relative flex flex-col items-center">
-                    <h3 className="text-lg mb-1">You</h3>
-                    <canvas
-                        ref={boardCanvasRef}
-                        width={BOARD_WIDTH * blockSize}
-                        height={BOARD_HEIGHT * blockSize}
-                        className="border-2 border-gray-500"
-                    />
-                    {gameOver && <div className="game-over-text">GAME OVER</div>}
-                </div>
-                <div className="opponent-area flex flex-col items-center">
-                    <h3 className="text-lg mb-1">Opponent</h3>
-                    <canvas
-                        ref={opponentBoardCanvasRef}
-                        width={BOARD_WIDTH * blockSize}
-                        height={BOARD_HEIGHT * blockSize}
-                        className="border-2 border-gray-700"
-                    />
+        <div className="tetris-container flex flex-col items-center justify-center min-h-screen w-full p-2 text-white">
+            <div className="w-full flex justify-center">
+                <div className="boards-container flex flex-row justify-center items-start gap-2 md:gap-4">
+                    <div className="game-area relative flex flex-col items-center">
+                        <h3 className="text-lg mb-1">You</h3>
+                        <canvas
+                            ref={boardCanvasRef}
+                            width={BOARD_WIDTH * blockSize}
+                            height={BOARD_HEIGHT * blockSize}
+                            className="border-2 border-gray-500"
+                        />
+                        {gameOver && <div className="game-over-text">GAME OVER</div>}
+                    </div>
+                    <div className="opponent-area flex flex-col items-center">
+                        <h3 className="text-lg mb-1">Opponent</h3>
+                        <canvas
+                            ref={opponentBoardCanvasRef}
+                            width={BOARD_WIDTH * blockSize}
+                            height={BOARD_HEIGHT * blockSize}
+                            className="border-2 border-gray-700"
+                        />
+                    </div>
                 </div>
             </div>
+    
             <div className="info-panel flex flex-row justify-around w-full max-w-4xl mt-2 text-sm md:text-base">
                 <p>Score: {score}</p>
                 <div className="flex flex-col items-center">
@@ -318,6 +321,7 @@ export default function Tetris({ sessionId, myAddress }) {
                 </div>
                 <p>Opponent Score: {opponentScore}</p>
             </div>
+    
             <div className="controls-info mt-4 w-full max-w-sm">
                 {isMobile() ? (
                     <div className="mobile-controls grid grid-cols-3 gap-4 p-2 bg-gray-800 rounded-xl">
