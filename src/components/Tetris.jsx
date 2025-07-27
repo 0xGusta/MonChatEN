@@ -283,7 +283,7 @@ export default function Tetris({ sessionId, myAddress }) {
     }, [handleKeyDown]);
     
     return (
-        <div className="tetris-container flex flex-col items-center justify-center min-h-screen w-full p-2 text-white">
+        <div className="tetris-container flex flex-col items-center w-full p-2 text-white">
             <div className="w-full flex justify-center">
                 <div className="boards-container flex flex-row justify-center items-start gap-2 md:gap-4">
                     <div className="game-area relative flex flex-col items-center">
