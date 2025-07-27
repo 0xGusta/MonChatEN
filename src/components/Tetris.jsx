@@ -77,10 +77,15 @@ export default function Tetris({ sessionId, myAddress }) {
         const handleResize = () => {
             const screenHeight = window.innerHeight;
             const screenWidth = window.innerWidth;
-            const heightBasedSize = Math.floor((screenHeight * 0.7) / BOARD_HEIGHT);
-            const widthBasedSize = Math.floor((screenWidth * 0.8 / 2) / BOARD_WIDTH);
+
+            const heightBasedSize = Math.floor((screenHeight * 0.85) / BOARD_HEIGHT);
+            
+            const widthPercentage = isMobile() ? 0.95 : 0.80;
+            const widthBasedSize = Math.floor((screenWidth * widthPercentage / 2) / BOARD_WIDTH);
+
             setBlockSize(Math.max(8, Math.min(heightBasedSize, widthBasedSize)));
         };
+
         handleResize();
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
@@ -300,7 +305,7 @@ export default function Tetris({ sessionId, myAddress }) {
                     />
                 </div>
             </div>
-            <div className="info-panel flex flex-row justify-around w-full max-w-lg mt-2 text-sm md:text-base">
+            <div className="info-panel flex flex-row justify-around w-full max-w-4xl mt-2 text-sm md:text-base">
                 <p>Score: {score}</p>
                 <div className="flex flex-col items-center">
                     <p>Next:</p>
@@ -313,18 +318,17 @@ export default function Tetris({ sessionId, myAddress }) {
                 </div>
                 <p>Opponent Score: {opponentScore}</p>
             </div>
-            <div className="controls-info mt-4">
+            <div className="controls-info mt-4 w-full max-w-sm">
                 {isMobile() ? (
-                    <div className="mobile-controls grid grid-cols-3 gap-4 p-4 bg-gray-800 rounded-xl max-w-sm mx-auto">
-                      <button className="btn-control text-2xl py-3 rounded-lg bg-gray-700 hover:bg-gray-600 active:bg-gray-500" onClick={() => move(-1)}>◀</button>
-                      <button className="btn-control text-2xl py-3 rounded-lg bg-gray-700 hover:bg-gray-600 active:bg-gray-500" onClick={() => playerRotate(board)}>↺</button>
-                      <button className="btn-control text-2xl py-3 rounded-lg bg-gray-700 hover:bg-gray-600 active:bg-gray-500" onClick={() => move(1)}>▶</button>
-                    
-                      <button className="btn-control col-span-3 text-xl py-3 rounded-lg bg-blue-700 hover:bg-blue-600 active:bg-blue-500" onClick={drop}>▼</button>
-                      <button className="btn-control col-span-3 text-xl py-3 rounded-lg bg-red-700 hover:bg-red-600 active:bg-red-500" onClick={hardDrop}>DROP</button>
+                    <div className="mobile-controls grid grid-cols-3 gap-4 p-2 bg-gray-800 rounded-xl">
+                        <button className="text-2xl py-3 rounded-lg bg-gray-700 active:bg-gray-600" onClick={() => move(-1)}>◀</button>
+                        <button className="text-2xl py-3 rounded-lg bg-gray-700 active:bg-gray-600" onClick={() => playerRotate(board)}>↺</button>
+                        <button className="text-2xl py-3 rounded-lg bg-gray-700 active:bg-gray-600" onClick={() => move(1)}>▶</button>
+                        <button className="col-span-3 text-xl py-3 rounded-lg bg-blue-700 active:bg-blue-600" onClick={drop}>▼</button>
+                        <button className="col-span-3 text-xl py-3 rounded-lg bg-red-700 active:bg-red-600" onClick={hardDrop}>DROP</button>
                     </div>
                 ) : (
-                    <div className="pc-controls bg-gray-800 p-3 rounded-lg text-sm">
+                    <div className="pc-controls bg-gray-800 p-3 rounded-lg text-sm text-center">
                         <h4 className="font-bold mb-1">Controls:</h4>
                         <p><span className="font-bold">←/→:</span> Move | <span className="font-bold">↑:</span> Rotate | <span className="font-bold">↓:</span> Soft Drop | <span className="font-bold">Space:</span> Hard Drop</p>
                     </div>
