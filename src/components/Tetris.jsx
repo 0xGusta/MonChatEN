@@ -4,6 +4,7 @@ import { useStateTogether } from 'react-together';
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 20;
 const GAME_DURATION = 120;
+const OPPONENT_TIMEOUT = 3000;
 
 const isMobile = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
@@ -66,6 +67,7 @@ export default function Tetris({ sessionId, myAddress }) {
     const [opponentPlayer, setOpponentPlayer] = useState(null);
     const [opponentScore, setOpponentScore] = useState(0);
     const [opponentGameOver, setOpponentGameOver] = useState(false);
+    const [opponentAbandoned, setOpponentAbandoned] = useState(false);
     const lastOpponentTimestampRef = useRef(0);
 
     const [sharedState, setSharedState] = useStateTogether(`tetris-game-${sessionId}`, {});
@@ -110,6 +112,23 @@ export default function Tetris({ sessionId, myAddress }) {
             lastOpponentTimestampRef.current = opponentData.timestamp;
         }
     }, [sharedState, myAddress, gameEnded, opponentGameOver]);
+
+    useEffect(() => {
+        const opponentAddress = Object.keys(sharedState).find(addr => addr !== myAddress);
+        if (gameEnded || !opponentAddress) return;
+
+        const interval = setInterval(() => {
+            if (lastOpponentTimestampRef.current > 0) {
+                const timeSinceLastUpdate = Date.now() - lastOpponentTimestampRef.current;
+                if (timeSinceLastUpdate > OPPONENT_TIMEOUT) {
+                    setOpponentAbandoned(true);
+                    clearInterval(interval);
+                }
+            }
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [sharedState, gameEnded, myAddress]);
     
     const boardCanvasRef = useRef(null);
     const nextCanvasRef = useRef(null);
@@ -154,12 +173,13 @@ export default function Tetris({ sessionId, myAddress }) {
         setGameEnded(true);
         setGameSpeed(null);
 
-        if (gameOver) {
+        if (opponentAbandoned) {
+            setWinner('You');
+        } else if (gameOver) {
             setWinner('Opponent');
         } else if (opponentGameOver) {
             setWinner('You');
         } else {
-
             if (score > opponentScore) {
                 setWinner('You');
             } else if (opponentScore > score) {
@@ -168,7 +188,7 @@ export default function Tetris({ sessionId, myAddress }) {
                 setWinner('Draw');
             }
         }
-    }, [gameEnded, gameOver, opponentGameOver, score, opponentScore]);
+    }, [gameEnded, gameOver, opponentGameOver, opponentAbandoned, score, opponentScore]);
 
     useEffect(() => {
         if (gameEnded) return;
@@ -188,10 +208,10 @@ export default function Tetris({ sessionId, myAddress }) {
     }, [gameEnded, endGame]);
 
     useEffect(() => {
-        if ((gameOver || opponentGameOver) && !gameEnded) {
+        if ((gameOver || opponentGameOver || opponentAbandoned) && !gameEnded) {
             endGame();
         }
-    }, [gameOver, opponentGameOver, gameEnded, endGame]);
+    }, [gameOver, opponentGameOver, opponentAbandoned, gameEnded, endGame]);
 
     const isColliding = (p, b, { x: moveX, y: moveY }) => {
         if (!p.tetromino) return false;
@@ -371,7 +391,9 @@ export default function Tetris({ sessionId, myAddress }) {
     }, [handleKeyDown]);
     
     let endMessageTitle = "TIME'S UP!";
-    if (winner === 'You' && opponentGameOver) {
+    if (winner === 'You' && opponentAbandoned) {
+        endMessageTitle = "OPPONENT LEFT!";
+    } else if (winner === 'You' && opponentGameOver) {
         endMessageTitle = "OPPONENT LOST!";
     } else if (winner === 'Opponent' && gameOver) {
         endMessageTitle = "GAME OVER";
@@ -405,7 +427,7 @@ export default function Tetris({ sessionId, myAddress }) {
                             {winner === 'Draw' ? (
                                 <p className="text-xl md:text-2xl mt-2">It's a Draw!</p>
                             ) : (
-                                <p className="text-xl md:text-2xl mt-2">{winner} wins! 🎉</p>
+                                <p className="text-xl md:text-2xl mt-2">{winner} wins!</p>
                             )}
                             <p className="mt-2 text-md">Final Score: {score} vs {opponentScore}</p>
                         </div>
