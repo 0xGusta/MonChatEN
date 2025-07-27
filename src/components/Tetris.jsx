@@ -5,7 +5,7 @@ import { getSyncedNow } from '../utils/timeSync';
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 20;
 const GAME_DURATION = 180;
-const OPPONENT_TIMEOUT = 3000;
+const OPPONENT_TIMEOUT = 5000;
 
 const isMobile = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
@@ -74,12 +74,7 @@ export default function Tetris({ sessionId, myAddress, players }) {
     const opponentAddressRef = useRef(null);
 
     const [sharedState, setSharedState] = useStateTogether(`tetris-game-${sessionId}`, {});
-
-    const sharedStateRef = useRef(sharedState);
-    useEffect(() => {
-        sharedStateRef.current = sharedState;
-    }, [sharedState]);
-
+    
     useEffect(() => {
         if (players && myAddress && !opponentAddressRef.current) {
             const opponentInfo = players.challenger.address.toLowerCase() === myAddress.toLowerCase() 
@@ -89,16 +84,13 @@ export default function Tetris({ sessionId, myAddress, players }) {
             opponentAddressRef.current = opponentInfo.address;
             
             const name = opponentInfo.username;
-            if (name.length > 12) {
-                setOpponentName(`${name.substring(0, 9)}...`);
-            } else {
-                setOpponentName(name);
-            }
+            setOpponentName(name.length > 12 ? `${name.substring(0, 9)}...` : name);
         }
     }, [players, myAddress]);
     
-    const endGame = useCallback(() => {
+    const endGame = useCallback((reason) => {
         if (gameEnded) return;
+        console.log(`FIM DE JOGO ACIONADO: ${reason}`);
 
         setGameEnded(true);
         setGameSpeed(null);
@@ -137,6 +129,12 @@ export default function Tetris({ sessionId, myAddress, players }) {
         const opponentData = sharedState[opponentAddr];
 
         if (opponentData && opponentData.timestamp > lastOpponentTimestampRef.current) {
+            if(lastMessageReceivedAtRef.current === 0) {
+                console.log("Primeira mensagem do oponente recebida.");
+            }
+            lastMessageReceivedAtRef.current = getSyncedNow();
+            lastOpponentTimestampRef.current = opponentData.timestamp;
+
             setOpponentBoard(opponentData.board || createEmptyBoard());
             setOpponentPlayer(opponentData.player);
             setOpponentScore(opponentData.score || 0);
@@ -146,11 +144,8 @@ export default function Tetris({ sessionId, myAddress, players }) {
             }
             
             if (opponentData.gameEnded && !gameEnded) {
-                endGame();
+                endGame("Oponente terminou o jogo");
             }
-            
-            lastOpponentTimestampRef.current = opponentData.timestamp;
-            lastMessageReceivedAtRef.current = getSyncedNow();
         }
     }, [sharedState, gameEnded, opponentGameOver, endGame]);
 
@@ -161,7 +156,7 @@ export default function Tetris({ sessionId, myAddress, players }) {
             setTimeLeft(prevTime => {
                 if (prevTime <= 1) {
                     clearInterval(timer);
-                    endGame();
+                    endGame("Tempo esgotado");
                     return 0;
                 }
                 return prevTime - 1;
@@ -176,17 +171,14 @@ export default function Tetris({ sessionId, myAddress, players }) {
 
         const interval = setInterval(() => {
             const opponentAddr = opponentAddressRef.current;
-            if (!opponentAddr || lastMessageReceivedAtRef.current === 0) {
-                return;
-            }
-            
-            const currentSharedState = sharedStateRef.current;
-            const opponentIsMissing = !currentSharedState[opponentAddr];
-            const timeSinceLastUpdate = getSyncedNow() - lastMessageReceivedAtRef.current;
-
-            if (opponentIsMissing || timeSinceLastUpdate > OPPONENT_TIMEOUT) {
-                setOpponentAbandoned(true);
-                clearInterval(interval);
+            if (opponentAddr && lastMessageReceivedAtRef.current > 0) {
+                const timeSinceLastUpdate = getSyncedNow() - lastMessageReceivedAtRef.current;
+                
+                if (timeSinceLastUpdate > OPPONENT_TIMEOUT) {
+                    console.log(`ABANDONO DETECTADO: Última mensagem há ${timeSinceLastUpdate}ms`);
+                    setOpponentAbandoned(true);
+                    clearInterval(interval);
+                }
             }
         }, 1000);
 
@@ -194,11 +186,13 @@ export default function Tetris({ sessionId, myAddress, players }) {
     }, [gameEnded]);
 
     useEffect(() => {
-        if ((gameOver || opponentGameOver || opponentAbandoned) && !gameEnded) {
-            endGame();
+        if (!gameEnded) {
+            if (gameOver) endGame("Game Over do jogador local");
+            else if (opponentGameOver) endGame("Game Over do oponente");
+            else if (opponentAbandoned) endGame("Oponente abandonou");
         }
     }, [gameOver, opponentGameOver, opponentAbandoned, gameEnded, endGame]);
-
+        
     const boardCanvasRef = useRef(null);
     const nextCanvasRef = useRef(null);
     const opponentBoardCanvasRef = useRef(null);
