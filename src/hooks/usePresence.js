@@ -6,6 +6,8 @@ const HEARTBEAT_INTERVAL = 5000;
 const OFFLINE_THRESHOLD = 16000;
 const TYPING_THRESHOLD = 1000;
 
+console.log("VITE_MULTISYNQ_APP_ID loaded:", import.meta.env.VITE_MULTISYNQ_APP_ID);
+
 const fetchWithRetry = async (url, options, retries = 5, backoff = 300) => {
   for (let i = 0; i < retries; i++) {
     try {
