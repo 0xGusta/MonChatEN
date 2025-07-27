@@ -3,7 +3,7 @@ import { useStateTogether } from 'react-together';
 
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 20;
-const GAME_DURATION = 120;
+const GAME_DURATION = 180;
 const OPPONENT_TIMEOUT = 3000;
 
 const isMobile = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -79,7 +79,7 @@ export default function Tetris({ sessionId, myAddress }) {
         setGameSpeed(null);
 
         if (opponentAbandoned) {
-            setWinner('You');
+            setWinner(null); 
         } else if (gameOver) {
             setWinner('Opponent');
         } else if (opponentGameOver) {
@@ -167,7 +167,7 @@ export default function Tetris({ sessionId, myAddress }) {
             endGame();
         }
     }, [gameOver, opponentGameOver, opponentAbandoned, gameEnded, endGame]);
-    
+        
     const boardCanvasRef = useRef(null);
     const nextCanvasRef = useRef(null);
     const opponentBoardCanvasRef = useRef(null);
@@ -388,7 +388,7 @@ export default function Tetris({ sessionId, myAddress }) {
     }, [handleKeyDown]);
     
     let endMessageTitle = "TIME'S UP!";
-    if (winner === 'You' && opponentAbandoned) {
+    if (opponentAbandoned) {
         endMessageTitle = "OPPONENT LEFT!";
     } else if (winner === 'You' && opponentGameOver) {
         endMessageTitle = "OPPONENT LOST!";
@@ -421,11 +421,14 @@ export default function Tetris({ sessionId, myAddress }) {
                     {gameEnded && (
                         <div className="absolute inset-0 bg-black bg-opacity-75 flex flex-col justify-center items-center text-center p-4">
                             <h2 className="text-3xl md:text-4xl font-bold mb-2">{endMessageTitle}</h2>
-                            {winner === 'Draw' ? (
-                                <p className="text-xl md:text-2xl mt-2">It's a Draw!</p>
-                            ) : (
-                                <p className="text-xl md:text-2xl mt-2">{winner} wins! 🎉</p>
+                            {!opponentAbandoned && (
+                                winner === 'Draw' ? (
+                                    <p className="text-xl md:text-2xl mt-2">It's a Draw!</p>
+                                ) : winner ? (
+                                    <p className="text-xl md:text-2xl mt-2">{winner} wins!</p>
+                                ) : null
                             )}
+                            
                             <p className="mt-2 text-md">Final Score: {score} vs {opponentScore}</p>
                         </div>
                     )}
