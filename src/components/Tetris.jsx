@@ -56,18 +56,39 @@ export default function Tetris({ sessionId, myAddress }) {
     const [gameOver, setGameOver] = useState(false);
     const [gameSpeed, setGameSpeed] = useState(1000);
     const [pieceSeed, setPieceSeed] = useState(mySeed);
-    
+
+    const [opponentBoard, setOpponentBoard] = useState(createEmptyBoard());
+    const [opponentPlayer, setOpponentPlayer] = useState(null);
+    const [opponentScore, setOpponentScore] = useState(0);
+    const lastOpponentTimestampRef = useRef(0);
+
     const [sharedState, setSharedState] = useStateTogether(`tetris-game-${sessionId}`, {});
     
     useEffect(() => {
-        setSharedState(prev => ({ ...prev, [myAddress]: { board, player, score, nextTetromino, gameOver } }));
+        setSharedState(prev => ({ 
+            ...prev, 
+            [myAddress]: { 
+                board, 
+                player, 
+                score, 
+                nextTetromino, 
+                gameOver,
+                timestamp: Date.now()
+            } 
+        }));
     }, [board, player, score, nextTetromino, gameOver, myAddress, setSharedState]);
     
-    const opponentAddress = Object.keys(sharedState).find(addr => addr !== myAddress);
-    const opponentData = opponentAddress ? sharedState[opponentAddress] : null;
-    const opponentBoard = opponentData?.board || createEmptyBoard();
-    const opponentPlayer = opponentData?.player;
-    const opponentScore = opponentData?.score || 0;
+    useEffect(() => {
+        const opponentAddress = Object.keys(sharedState).find(addr => addr !== myAddress);
+        const opponentData = opponentAddress ? sharedState[opponentAddress] : null;
+
+        if (opponentData && opponentData.timestamp > lastOpponentTimestampRef.current) {
+            setOpponentBoard(opponentData.board || createEmptyBoard());
+            setOpponentPlayer(opponentData.player);
+            setOpponentScore(opponentData.score || 0);
+            lastOpponentTimestampRef.current = opponentData.timestamp;
+        }
+    }, [sharedState, myAddress]);
     
     const boardCanvasRef = useRef(null);
     const nextCanvasRef = useRef(null);
@@ -77,12 +98,9 @@ export default function Tetris({ sessionId, myAddress }) {
         const handleResize = () => {
             const screenHeight = window.innerHeight;
             const screenWidth = window.innerWidth;
-
             const heightBasedSize = Math.floor((screenHeight * 0.40) / BOARD_HEIGHT);
-            
             const widthPercentage = isMobile() ? 0.95 : 0.80;
             const widthBasedSize = Math.floor((screenWidth * widthPercentage / 2) / BOARD_WIDTH);
-
             setBlockSize(Math.max(8, Math.min(heightBasedSize, widthBasedSize)));
         };
 
@@ -307,7 +325,7 @@ export default function Tetris({ sessionId, myAddress }) {
                     </div>
                 </div>
             </div>
-    
+            
             <div className="info-panel flex flex-row justify-around w-full max-w-4xl mt-2 text-sm md:text-base">
                 <p>Score: {score}</p>
                 <div className="flex flex-col items-center">
@@ -321,7 +339,7 @@ export default function Tetris({ sessionId, myAddress }) {
                 </div>
                 <p>Opponent Score: {opponentScore}</p>
             </div>
-    
+            
             <div className="controls-info mt-4 w-full max-w-sm">
                 {isMobile() ? (
                     <div className="mobile-controls grid grid-cols-3 gap-2 p-1 bg-gray-800 rounded-xl">
