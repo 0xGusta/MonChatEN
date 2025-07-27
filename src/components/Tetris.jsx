@@ -94,12 +94,14 @@ export default function Tetris({ sessionId, myAddress }) {
             setOpponentBoard(opponentData.board || createEmptyBoard());
             setOpponentPlayer(opponentData.player);
             setOpponentScore(opponentData.score || 0);
-            setOpponentGameOver(opponentData.gameOver || false);
+            
+            if (opponentData.gameOver && !opponentGameOver) {
+                setOpponentGameOver(true);
+            }
             
             if (opponentData.gameEnded && !gameEnded) {
                 setGameEnded(true);
                 setGameSpeed(null);
-  
                 if (opponentData.winner === 'You') setWinner('Opponent');
                 else if (opponentData.winner === 'Opponent') setWinner('You');
                 else setWinner('Draw');
@@ -107,7 +109,7 @@ export default function Tetris({ sessionId, myAddress }) {
             
             lastOpponentTimestampRef.current = opponentData.timestamp;
         }
-    }, [sharedState, myAddress, gameEnded]);
+    }, [sharedState, myAddress, gameEnded, opponentGameOver]);
     
     const boardCanvasRef = useRef(null);
     const nextCanvasRef = useRef(null);
@@ -117,7 +119,7 @@ export default function Tetris({ sessionId, myAddress }) {
         const handleResize = () => {
             const screenHeight = window.innerHeight;
             const screenWidth = window.innerWidth;
-            const heightBasedSize = Math.floor((screenHeight * 0.30) / BOARD_HEIGHT);
+            const heightBasedSize = Math.floor((screenHeight * 0.40) / BOARD_HEIGHT);
             const widthPercentage = isMobile() ? 0.95 : 0.80;
             const widthBasedSize = Math.floor((screenWidth * widthPercentage / 2) / BOARD_WIDTH);
             setBlockSize(Math.max(8, Math.min(heightBasedSize, widthBasedSize)));
@@ -152,14 +154,21 @@ export default function Tetris({ sessionId, myAddress }) {
         setGameEnded(true);
         setGameSpeed(null);
 
-        if (score > opponentScore) {
-            setWinner('You');
-        } else if (opponentScore > score) {
+        if (gameOver) {
             setWinner('Opponent');
+        } else if (opponentGameOver) {
+            setWinner('You');
         } else {
-            setWinner('Draw');
+
+            if (score > opponentScore) {
+                setWinner('You');
+            } else if (opponentScore > score) {
+                setWinner('Opponent');
+            } else {
+                setWinner('Draw');
+            }
         }
-    }, [score, opponentScore, gameEnded]);
+    }, [gameEnded, gameOver, opponentGameOver, score, opponentScore]);
 
     useEffect(() => {
         if (gameEnded) return;
@@ -344,7 +353,7 @@ export default function Tetris({ sessionId, myAddress }) {
     }, [nextTetromino, drawNext]);
     
     const handleKeyDown = useCallback((e) => {
-        if (gameOver || gameEnded) return;
+        if (gameEnded) return;
         const keyMap = {
             'ArrowLeft': () => move(-1), 'ArrowRight': () => move(1), 'ArrowDown': drop,
             'ArrowUp': () => playerRotate(board), ' ': hardDrop,
@@ -354,18 +363,25 @@ export default function Tetris({ sessionId, myAddress }) {
             e.preventDefault();
             action();
         }
-    }, [gameOver, gameEnded, drop, playerRotate, hardDrop, board]);
+    }, [gameEnded, drop, playerRotate, hardDrop, board]);
     
     useEffect(() => {
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [handleKeyDown]);
     
+    let endMessageTitle = "TIME'S UP!";
+    if (winner === 'You' && opponentGameOver) {
+        endMessageTitle = "OPPONENT LOST!";
+    } else if (winner === 'Opponent' && gameOver) {
+        endMessageTitle = "GAME OVER";
+    }
+
     return (
         <div className="tetris-container flex flex-col items-center w-full p-2 text-white">
             <div className="w-full flex justify-center">
-                <div className="boards-container flex flex-row justify-center items-start gap-2 md:gap-4">
-                    <div className="game-area relative flex flex-col items-center">
+                <div className="boards-container relative flex flex-row justify-center items-start gap-2 md:gap-4">
+                    <div className="game-area flex flex-col items-center">
                         <h3 className="text-lg mb-1">You</h3>
                         <canvas
                             ref={boardCanvasRef}
@@ -373,18 +389,6 @@ export default function Tetris({ sessionId, myAddress }) {
                             height={BOARD_HEIGHT * blockSize}
                             className="border-2 border-gray-500"
                         />
-
-                        {gameEnded && (
-                            <div className="game-over-text absolute inset-0 bg-black bg-opacity-70 flex flex-col justify-center items-center">
-                                <h2 className="text-3xl font-bold">{gameOver ? "GAME OVER" : "TIME'S UP!"}</h2>
-                                {winner === 'Draw' ? (
-                                    <p className="text-xl mt-2">It's a Draw!</p>
-                                ) : (
-                                    <p className="text-xl mt-2">{winner} wins!</p>
-                                )}
-                                <p className="mt-1">Final Score: {score} vs {opponentScore}</p>
-                            </div>
-                        )}
                     </div>
                     <div className="opponent-area flex flex-col items-center">
                         <h3 className="text-lg mb-1">Opponent</h3>
@@ -395,12 +399,22 @@ export default function Tetris({ sessionId, myAddress }) {
                             className="border-2 border-gray-700"
                         />
                     </div>
+                    {gameEnded && (
+                        <div className="absolute inset-0 bg-black bg-opacity-75 flex flex-col justify-center items-center text-center p-4">
+                            <h2 className="text-3xl md:text-4xl font-bold mb-2">{endMessageTitle}</h2>
+                            {winner === 'Draw' ? (
+                                <p className="text-xl md:text-2xl mt-2">It's a Draw!</p>
+                            ) : (
+                                <p className="text-xl md:text-2xl mt-2">{winner} wins! 🎉</p>
+                            )}
+                            <p className="mt-2 text-md">Final Score: {score} vs {opponentScore}</p>
+                        </div>
+                    )}
                 </div>
             </div>
             
             <div className="info-panel flex flex-row justify-around items-center w-full max-w-4xl mt-2 text-sm md:text-base">
                 <p>Score: {score}</p>
-
                 <div className="text-center">
                     <p className="font-bold text-lg">Time</p>
                     <p className="text-2xl">{Math.floor(timeLeft / 60)}:{('0' + (timeLeft % 60)).slice(-2)}</p>
