@@ -1,7 +1,7 @@
 import React from 'react';
 import { useStateTogether } from 'react-together';
 import TicTacToe from './TicTacToe';
-import Tetris from './Tetris';
+//import Tetris from './Tetris';
 
 export default function GameModal({ isOpen, onClose, gameType, players, sessionId, myAddress, onGameEnd, onRematchOffer }) {
     const [playerStatus, setPlayerStatus] = useStateTogether(`tetris-playerStatus-${sessionId}`, {
