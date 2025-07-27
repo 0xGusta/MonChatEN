@@ -107,17 +107,18 @@ export default function Tetris({ sessionId, myAddress }) {
             }
             
             lastOpponentTimestampRef.current = opponentData.timestamp;
-
             lastMessageReceivedAtRef.current = Date.now();
         }
     }, [sharedState, myAddress, gameEnded, opponentGameOver]);
 
+    const opponentAddress = Object.keys(sharedState).find(addr => addr !== myAddress);
+
     useEffect(() => {
-        const opponentAddress = Object.keys(sharedState).find(addr => addr !== myAddress);
-        if (gameEnded || !opponentAddress) return;
+        if (gameEnded || !opponentAddress) {
+            return;
+        }
 
         const interval = setInterval(() => {
-
             if (lastMessageReceivedAtRef.current > 0) {
                 const timeSinceLastUpdate = Date.now() - lastMessageReceivedAtRef.current;
                 if (timeSinceLastUpdate > OPPONENT_TIMEOUT) {
@@ -128,7 +129,7 @@ export default function Tetris({ sessionId, myAddress }) {
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [sharedState, gameEnded, myAddress]);
+    }, [gameEnded, opponentAddress]);
 
 
     const boardCanvasRef = useRef(null);
