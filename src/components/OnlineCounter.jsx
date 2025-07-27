@@ -20,7 +20,7 @@ const OnlineCounter = ({ count }) => {
         <span 
           className="loading-spinner" 
           style={{ width: '16px', height: '16px', borderWidth: '2px' }}
-          title="synchronizing with multisynq..."
+          title="synchronizing with multisynq... If this takes too long, reload the page, this affects games and online and typing status."
         />
       ) : (
         <span>{count}</span>
