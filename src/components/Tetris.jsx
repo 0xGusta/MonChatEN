@@ -58,7 +58,6 @@ export default function Tetris({ sessionId, myAddress }) {
     const [gameSpeed, setGameSpeed] = useState(1000);
     const [pieceSeed, setPieceSeed] = useState(mySeed);
 
-    // --- NOVOS ESTADOS PARA O TIMER E FIM DE JOGO ---
     const [timeLeft, setTimeLeft] = useState(GAME_DURATION);
     const [gameEnded, setGameEnded] = useState(false);
     const [winner, setWinner] = useState(null);
@@ -71,7 +70,6 @@ export default function Tetris({ sessionId, myAddress }) {
 
     const [sharedState, setSharedState] = useStateTogether(`tetris-game-${sessionId}`, {});
     
-    // Compartilha o estado, incluindo o status de fim de jogo
     useEffect(() => {
         setSharedState(prev => ({ 
             ...prev, 
@@ -81,14 +79,13 @@ export default function Tetris({ sessionId, myAddress }) {
                 score, 
                 nextTetromino, 
                 gameOver,
-                gameEnded, // Compartilha se o jogo terminou
-                winner,    // Compartilha quem venceu
+                gameEnded,
+                winner,
                 timestamp: Date.now()
             } 
         }));
     }, [board, player, score, nextTetromino, gameOver, gameEnded, winner, myAddress, setSharedState]);
     
-    // Sincroniza o estado com o oponente
     useEffect(() => {
         const opponentAddress = Object.keys(sharedState).find(addr => addr !== myAddress);
         const opponentData = opponentAddress ? sharedState[opponentAddress] : null;
@@ -99,11 +96,10 @@ export default function Tetris({ sessionId, myAddress }) {
             setOpponentScore(opponentData.score || 0);
             setOpponentGameOver(opponentData.gameOver || false);
             
-            // Se o oponente declarou o fim do jogo, atualize o estado local
             if (opponentData.gameEnded && !gameEnded) {
                 setGameEnded(true);
                 setGameSpeed(null);
-                // Determina o vencedor da perspectiva do jogador atual
+  
                 if (opponentData.winner === 'You') setWinner('Opponent');
                 else if (opponentData.winner === 'Opponent') setWinner('You');
                 else setWinner('Draw');
@@ -150,14 +146,12 @@ export default function Tetris({ sessionId, myAddress }) {
         }
     }, [player.tetromino, resetPlayer, gameEnded]);
 
-    // --- LÓGICA PARA ENCERRAR O JOGO ---
     const endGame = useCallback(() => {
-        if (gameEnded) return; // Evita execuções múltiplas
+        if (gameEnded) return;
 
         setGameEnded(true);
         setGameSpeed(null);
 
-        // Compara as pontuações para determinar o vencedor
         if (score > opponentScore) {
             setWinner('You');
         } else if (opponentScore > score) {
@@ -167,7 +161,6 @@ export default function Tetris({ sessionId, myAddress }) {
         }
     }, [score, opponentScore, gameEnded]);
 
-    // --- USEEFFECT PARA O TIMER ---
     useEffect(() => {
         if (gameEnded) return;
 
@@ -185,7 +178,6 @@ export default function Tetris({ sessionId, myAddress }) {
         return () => clearInterval(timer);
     }, [gameEnded, endGame]);
 
-    // --- VERIFICA CONDIÇÕES DE FIM DE JOGO ---
     useEffect(() => {
         if ((gameOver || opponentGameOver) && !gameEnded) {
             endGame();
