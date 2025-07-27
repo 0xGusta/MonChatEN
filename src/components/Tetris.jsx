@@ -133,31 +133,41 @@ export default function Tetris({ sessionId, myAddress }) {
         const timer = setInterval(() => {
             setTimeLeft(prevTime => {
                 if (prevTime <= 1) {
+                    clearInterval(timer);
                     endGame();
                     return 0;
                 }
                 return prevTime - 1;
             });
+        }, 1000);
 
-            const opponentAddress = Object.keys(sharedState).find(addr => addr !== myAddress);
-            if (opponentAddress && lastMessageReceivedAtRef.current > 0) {
+        return () => clearInterval(timer);
+    }, [gameEnded, endGame]);
+
+    const opponentAddress = Object.keys(sharedState).find(addr => addr !== myAddress);
+    useEffect(() => {
+        if (gameEnded || !opponentAddress) return;
+
+        const interval = setInterval(() => {
+            if (lastMessageReceivedAtRef.current > 0) {
                 const timeSinceLastUpdate = Date.now() - lastMessageReceivedAtRef.current;
                 
                 if (timeSinceLastUpdate > OPPONENT_TIMEOUT) {
                     setOpponentAbandoned(true);
+                    clearInterval(interval);
                 }
             }
         }, 1000);
 
-        return () => clearInterval(timer);
-    }, [gameEnded, sharedState, endGame]);
+        return () => clearInterval(interval);
+    }, [gameEnded, opponentAddress]);
 
     useEffect(() => {
         if ((gameOver || opponentGameOver || opponentAbandoned) && !gameEnded) {
             endGame();
         }
     }, [gameOver, opponentGameOver, opponentAbandoned, gameEnded, endGame]);
-        
+    
     const boardCanvasRef = useRef(null);
     const nextCanvasRef = useRef(null);
     const opponentBoardCanvasRef = useRef(null);
@@ -196,7 +206,6 @@ export default function Tetris({ sessionId, myAddress }) {
     }, [player.tetromino, resetPlayer, gameEnded]);
 
     const isColliding = (p, b, { x: moveX, y: moveY }) => {
-
         if (!p || !p.tetromino) return false;
         for (let y = 0; y < p.tetromino.shape.length; y += 1) {
             for (let x = 0; x < p.tetromino.shape[y].length; x += 1) {
@@ -218,7 +227,6 @@ export default function Tetris({ sessionId, myAddress }) {
     };
     
     const playerRotate = (board) => {
-
         if (gameEnded || !player.tetromino) return;
 
         const clonedPlayer = JSON.parse(JSON.stringify(player));
@@ -270,7 +278,6 @@ export default function Tetris({ sessionId, myAddress }) {
     };
     
     useEffect(() => {
-
         if (player.collided && player.tetromino) {
             const newBoard = board.map(row => [...row]);
             player.tetromino.shape.forEach((row, y) => {
