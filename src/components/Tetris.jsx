@@ -421,9 +421,24 @@ export default function Tetris({ sessionId, myAddress, players }) {
         endMessageTitle = "GAME OVER";
     }
 
-    return (
-        <div className="tetris-container flex flex-col items-center w-full p-2 text-white">
-            <div className="w-full flex justify-center">
+return (
+    <div className="tetris-container flex flex-col items-center w-full p-2 text-white">
+        
+        <div className="w-full max-w-6xl flex flex-col md:flex-row justify-center items-start gap-4">
+
+            <div className="hidden md:flex flex-col items-center space-y-2 w-40 mt-8">
+                <h3 className="text-lg font-bold">Next</h3>
+                <canvas
+                    ref={nextCanvasRef}
+                    width={4 * blockSize}
+                    height={4 * blockSize}
+                    className="border border-gray-600 bg-gray-800 rounded-lg"
+                />
+                <h3 className="text-lg font-bold mt-4">Your Score</h3>
+                <p className="text-2xl font-mono">{score}</p>
+            </div>
+
+            <div className="flex-grow flex flex-col items-center w-full md:w-auto">
                 <div className="boards-container relative flex flex-row justify-center items-start gap-2 md:gap-4">
                     <div className="game-area flex flex-col items-center">
                         <h3 className="text-lg mb-1">You</h3>
@@ -435,7 +450,7 @@ export default function Tetris({ sessionId, myAddress, players }) {
                         />
                     </div>
                     <div className="opponent-area flex flex-col items-center">
-                        <h3 className="text-lg mb-1" title={players?.opponent?.username}>{opponentName}</h3>
+                        <h3 className="text-lg mb-1" title={players?.opponent?.username || 'Opponent'}>{opponentName}</h3>
                         <canvas
                             ref={opponentBoardCanvasRef}
                             width={BOARD_WIDTH * blockSize}
@@ -443,6 +458,7 @@ export default function Tetris({ sessionId, myAddress, players }) {
                             className="border-2 border-gray-700"
                         />
                     </div>
+
                     {gameEnded && (
                         <div className="absolute inset-0 bg-black bg-opacity-75 flex flex-col justify-center items-center text-center p-4">
                             <h2 className="text-3xl md:text-4xl font-bold mb-2">{endMessageTitle}</h2>
@@ -453,47 +469,53 @@ export default function Tetris({ sessionId, myAddress, players }) {
                                     <p className="text-xl md:text-2xl mt-2">{winner === 'You' ? 'You win!' : `${opponentName} wins!`}</p>
                                 ) : null
                             )}
-                            
                             <p className="mt-2 text-md">Final Score: {score} vs {opponentScore}</p>
                         </div>
                     )}
                 </div>
-            </div>
-            
-            <div className="info-panel flex flex-row justify-around items-center w-full max-w-4xl mt-2 text-sm md:text-base">
-                <p>Score: {score}</p>
-                <div className="text-center">
+                
+                <div className="text-center mt-2">
                     <p className="font-bold text-lg">Time</p>
                     <p className="text-2xl">{Math.floor(timeLeft / 60)}:{('0' + (timeLeft % 60)).slice(-2)}</p>
                 </div>
+            </div>
+
+            <div className="hidden md:flex flex-col items-center space-y-2 w-40 mt-8">
+                 <h3 className="text-lg font-bold">Opponent Score</h3>
+                 <p className="text-2xl font-mono">{opponentScore}</p>
+            </div>
+
+            <div className="info-panel flex md:hidden flex-row justify-around items-center w-full max-w-4xl mt-2 text-sm">
+                <p>Score: {score}</p>
                 <div className="flex flex-col items-center">
                     <p>Next:</p>
                     <canvas
-                        ref={nextCanvasRef}
+                        ref={isMobile() ? nextCanvasRef : null}
                         width={4 * blockSize}
                         height={4 * blockSize}
                         className="border border-gray-600 mt-1"
                     />
                 </div>
-                <p>Opponent Score: {opponentScore}</p>
-            </div>
-            
-            <div className="controls-info mt-4 w-full max-w-sm">
-                {isMobile() ? (
-                    <div className="mobile-controls grid grid-cols-3 gap-2 p-1 bg-gray-800 rounded-xl">
-                        <button className="text-2xl py-1 rounded-lg bg-gray-700 active:bg-gray-600" disabled={gameEnded} onClick={() => move(-1)}>◀</button>
-                        <button className="text-2xl py-1 rounded-lg bg-gray-700 active:bg-gray-600" disabled={gameEnded} onClick={() => playerRotate(board)}>↺</button>
-                        <button className="text-2xl py-1 rounded-lg bg-gray-700 active:bg-gray-600" disabled={gameEnded} onClick={() => move(1)}>▶</button>
-                        <button className="col-span-3 text-xl py-1 rounded-lg bg-blue-700 active:bg-blue-600" disabled={gameEnded} onClick={drop}>▼</button>
-                        <button className="col-span-3 text-xl py-1 rounded-lg bg-red-700 active:bg-red-600" disabled={gameEnded} onClick={hardDrop}>DROP</button>
-                    </div>
-                ) : (
-                    <div className="pc-controls bg-gray-800 p-3 rounded-lg text-sm text-center">
-                        <h4 className="font-bold mb-1">Controls:</h4>
-                        <p><span className="font-bold">←/→:</span> Move | <span className="font-bold">↑:</span> Rotate | <span className="font-bold">↓:</span> Soft Drop | <span className="font-bold">Space:</span> Hard Drop</p>
-                    </div>
-                )}
+                <p>Opponent: {opponentScore}</p>
             </div>
         </div>
-    );
+
+        <div className="controls-info mt-4 w-full max-w-sm">
+            {isMobile() ? (
+                <div className="mobile-controls grid grid-cols-3 gap-2 p-1 bg-gray-800 rounded-xl">
+                    <button className="text-2xl py-1 rounded-lg bg-gray-700 active:bg-gray-600" disabled={gameEnded} onClick={() => move(-1)}>◀</button>
+                    <button className="text-2xl py-1 rounded-lg bg-gray-700 active:bg-gray-600" disabled={gameEnded} onClick={() => playerRotate(board)}>↺</button>
+                    <button className="text-2xl py-1 rounded-lg bg-gray-700 active:bg-gray-600" disabled={gameEnded} onClick={() => move(1)}>▶</button>
+                    <button className="col-span-3 text-xl py-1 rounded-lg bg-blue-700 active:bg-blue-600" disabled={gameEnded} onClick={drop}>▼</button>
+                    <button className="col-span-3 text-xl py-1 rounded-lg bg-red-700 active:bg-red-600" disabled={gameEnded} onClick={hardDrop}>DROP</button>
+                </div>
+            ) : (
+                <div className="pc-controls bg-gray-800 p-3 rounded-lg text-sm text-center">
+                    <h4 className="font-bold mb-1">Controls:</h4>
+                    <p><span className="font-bold">←/→:</span> Move | <span className="font-bold">↑:</span> Rotate | <span className="font-bold">↓:</span> Soft Drop | <span className="font-bold">Space:</span> Hard Drop</p>
+                </div>
+            )}
+        </div>
+    </div>
+);
 }
