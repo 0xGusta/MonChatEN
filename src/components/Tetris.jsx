@@ -142,12 +142,8 @@ export default function Tetris({ sessionId, myAddress, players }) {
             if (opponentData.gameOver && !opponentGameOver) {
                 setOpponentGameOver(true);
             }
-            
-            if (opponentData.gameEnded && !gameEnded) {
-                endGame("Oponente terminou o jogo");
-            }
         }
-    }, [sharedState, gameEnded, opponentGameOver, endGame]);
+    }, [sharedState, gameEnded, opponentGameOver]);
 
     useEffect(() => {
         if (gameEnded) return;
