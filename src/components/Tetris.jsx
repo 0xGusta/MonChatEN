@@ -49,7 +49,7 @@ const useGameLoop = (callback, speed) => {
 };
 
 export default function Tetris({ sessionId, myAddress, players }) {
-    const mySeed = parseInt(myAddress.slice(2, 10), 16);
+    const mySeed = getSyncedNow() + parseInt(myAddress.slice(2, 10), 16);
     
     const [blockSize, setBlockSize] = useState(20);
     const [board, setBoard] = useState(createEmptyBoard());
