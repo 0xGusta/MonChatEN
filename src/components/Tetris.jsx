@@ -197,12 +197,22 @@ export default function Tetris({ sessionId, myAddress, players }) {
         const handleResize = () => {
             const screenHeight = window.innerHeight;
             const screenWidth = window.innerWidth;
-            const heightBasedSize = Math.floor((screenHeight * 0.40) / BOARD_HEIGHT);
+            let heightBasedSize;
+    
+            if (isMobile()) {
+
+                heightBasedSize = Math.floor((screenHeight * 0.20) / BOARD_HEIGHT);
+            } else {
+
+                heightBasedSize = Math.floor((screenHeight * 0.40) / BOARD_HEIGHT);
+            }
+
             const widthPercentage = isMobile() ? 0.95 : 0.80;
             const widthBasedSize = Math.floor((screenWidth * widthPercentage / 2) / BOARD_WIDTH);
+            
             setBlockSize(Math.max(8, Math.min(heightBasedSize, widthBasedSize)));
         };
-
+    
         handleResize();
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
@@ -500,22 +510,24 @@ return (
             </div>
         </div>
 
-        <div className="controls-info mt-4 w-full max-w-sm">
-            {isMobile() ? (
+        <div 
+              className={`controls-info mt-4 w-full ${!isMobile() ? 'max-w-sm mx-auto' : ''}`}
+            >
+              {isMobile() ? (
                 <div className="mobile-controls grid grid-cols-3 gap-2 p-1 bg-gray-800 rounded-xl">
-                    <button className="text-2xl py-1 rounded-lg bg-gray-700 active:bg-gray-600" disabled={gameEnded} onClick={() => move(-1)}>◀</button>
-                    <button className="text-2xl py-1 rounded-lg bg-gray-700 active:bg-gray-600" disabled={gameEnded} onClick={() => playerRotate(board)}>↺</button>
-                    <button className="text-2xl py-1 rounded-lg bg-gray-700 active:bg-gray-600" disabled={gameEnded} onClick={() => move(1)}>▶</button>
-                    <button className="col-span-3 text-xl py-1 rounded-lg bg-blue-700 active:bg-blue-600" disabled={gameEnded} onClick={drop}>▼</button>
-                    <button className="col-span-3 text-xl py-1 rounded-lg bg-red-700 active:bg-red-600" disabled={gameEnded} onClick={hardDrop}>DROP</button>
+                  <button className="text-2xl py-1 rounded-lg bg-gray-700 active:bg-gray-600" disabled={gameEnded} onClick={() => move(-1)}>◀</button>
+                  <button className="text-2xl py-1 rounded-lg bg-gray-700 active:bg-gray-600" disabled={gameEnded} onClick={() => playerRotate(board)}>↺</button>
+                  <button className="text-2xl py-1 rounded-lg bg-gray-700 active:bg-gray-600" disabled={gameEnded} onClick={() => move(1)}>▶</button>
+                  <button className="col-span-3 text-xl py-1 rounded-lg bg-blue-700 active:bg-blue-600" disabled={gameEnded} onClick={drop}>▼</button>
+                  <button className="col-span-3 text-xl py-1 rounded-lg bg-red-700 active:bg-red-600" disabled={gameEnded} onClick={hardDrop}>DROP</button>
                 </div>
-            ) : (
+              ) : (
                 <div className="pc-controls bg-gray-800 p-3 rounded-lg text-sm text-center">
-                    <h4 className="font-bold mb-1">Controls:</h4>
-                    <p><span className="font-bold">←/→:</span> Move | <span className="font-bold">↑:</span> Rotate | <span className="font-bold">↓:</span> Soft Drop | <span className="font-bold">Space:</span> Hard Drop</p>
+                  <h4 className="font-bold mb-1">Controls:</h4>
+                  <p><span className="font-bold">←/→:</span> Move | <span className="font-bold">↑:</span> Rotate | <span className="font-bold">↓:</span> Soft Drop | <span className="font-bold">Space:</span> Hard Drop</p>
                 </div>
-            )}
-        </div>
+              )}
+            </div>
     </div>
 );
 }
