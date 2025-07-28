@@ -1480,7 +1480,7 @@ export default function ChatApp() {
                             <i className="fas fa-circle text-xs"></i>
                             {isConnected ? 'Connected' : 'Read-Only'}
                         </div>
-                        {isConnected && <OnlineCounter count={onlineCount} />}
+                        {isConnected && <OnlineCounter count={onlineCount} onlineUsers={onlineUsers} />}
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
