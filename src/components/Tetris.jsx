@@ -5,7 +5,7 @@ import { getSyncedNow } from '../utils/timeSync';
 const BOARD_WIDTH = 10;
 const BOARD_HEIGHT = 20;
 const GAME_DURATION = 180;
-const OPPONENT_TIMEOUT = 5000;
+const OPPONENT_TIMEOUT = 10000;
 
 const isMobile = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
